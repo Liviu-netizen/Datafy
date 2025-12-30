@@ -3170,10 +3170,6 @@ export const ensureContentSeeded = async () => {
     WHERE version = ${CONTENT_SEED_VERSION}
     LIMIT 1
   `;
-  if (seedResult.rows[0]) {
-    seeded = true;
-    return;
-  }
 
   const content = buildProgramContent();
   const expectedLessonSteps = content.lessons.reduce(
@@ -3209,11 +3205,13 @@ export const ensureContentSeeded = async () => {
     Number(countsRow.checkpoint_tests) >= content.checkpointTests.length &&
     Number(countsRow.checkpoint_questions) >= expectedCheckpointQuestions;
   if (hasAllContent) {
-    await db`
-      INSERT INTO content_seed (version)
-      VALUES (${CONTENT_SEED_VERSION})
-      ON CONFLICT (version) DO NOTHING
-    `;
+    if (!seedResult.rows[0]) {
+      await db`
+        INSERT INTO content_seed (version)
+        VALUES (${CONTENT_SEED_VERSION})
+        ON CONFLICT (version) DO NOTHING
+      `;
+    }
     seeded = true;
     return;
   }
