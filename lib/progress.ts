@@ -1,9 +1,8 @@
-import "server-only";
+import "./server-only";
 import { getDb } from "./db";
 
 const TOTAL_DAYS = 84;
 const XP_PER_DAY = 10;
-const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 type ProgressRow = {
   user_id: number;
@@ -47,16 +46,6 @@ const parseDateString = (value: string) => {
   const normalized = normalizeDateValue(value) ?? todayString();
   const [year, month, day] = normalized.split("-").map(Number);
   return new Date(year, month - 1, day);
-};
-
-const daysBetween = (start: string, end: string) => {
-  const startDate = parseDateString(start);
-  const endDate = parseDateString(end);
-  const diff = endDate.getTime() - startDate.getTime();
-  if (!Number.isFinite(diff)) {
-    return 0;
-  }
-  return Math.floor(diff / MS_PER_DAY);
 };
 
 export const ensureProgressRow = async (userId: number) => {
@@ -106,16 +95,13 @@ export const ensureProgressRow = async (userId: number) => {
   };
 };
 
-const getDayNumber = (startDate: string, today: string) =>
-  daysBetween(startDate, today) + 1;
-
 const getYesterdayString = (today: string) => {
   const date = parseDateString(today);
   date.setDate(date.getDate() - 1);
   return toDateStringLocal(date);
 };
 
-const isTodayCompleted = async (userId: number, dayNumber: number) => {
+const isLessonCompleted = async (userId: number, dayNumber: number) => {
   const db = await getDb();
   const result = await db`
     SELECT day
@@ -124,6 +110,19 @@ const isTodayCompleted = async (userId: number, dayNumber: number) => {
     LIMIT 1
   `;
   return Boolean(result.rows[0]);
+};
+
+const getMaxPassedCheckpointDay = async (userId: number) => {
+  const db = await getDb();
+  const result = await db`
+    SELECT COALESCE(MAX(ct.day_number), 0) AS max_day
+    FROM checkpoint_attempts ca
+    INNER JOIN checkpoint_tests ct
+      ON ct.id = ca.checkpoint_test_id
+    WHERE ca.user_id = ${userId} AND ca.passed = true
+  `;
+  const maxDay = Number(result.rows[0]?.max_day ?? 0);
+  return Number.isFinite(maxDay) ? maxDay : 0;
 };
 
 export const getCompletedDays = async (userId: number) => {
@@ -163,19 +162,22 @@ export const getDashboardData = async (userId: number) => {
   const today = todayString();
   const progress = await ensureProgressRow(userId);
   const normalized = await resetStreakIfMissed(progress, today);
-  const dayNumber = getDayNumber(normalized.start_date, today);
-  const cappedDay = Math.min(dayNumber, TOTAL_DAYS);
-  const completedAll = dayNumber > TOTAL_DAYS;
-  const todayCompleted = !completedAll && (await isTodayCompleted(userId, dayNumber));
+  const maxPassedCheckpoint = await getMaxPassedCheckpointDay(userId);
+  const dayNumber = Math.min(maxPassedCheckpoint + 1, TOTAL_DAYS);
+  const completedAll = maxPassedCheckpoint >= TOTAL_DAYS;
+  const lessonCompleted = !completedAll && (await isLessonCompleted(userId, dayNumber));
+  const checkpointPassed = maxPassedCheckpoint >= dayNumber;
 
   return {
-    dayNumber: cappedDay,
+    dayNumber,
     totalDays: TOTAL_DAYS,
     xp: normalized.xp,
     streak: normalized.streak,
     today,
-    todayCompleted,
-    canComplete: !completedAll && !todayCompleted,
+    lessonCompleted,
+    checkpointPassed,
+    canComplete: !completedAll && !lessonCompleted,
+    canTakeCheckpoint: !completedAll && lessonCompleted && !checkpointPassed,
     completedAll,
   };
 };
@@ -183,13 +185,14 @@ export const getDashboardData = async (userId: number) => {
 export const completeToday = async (userId: number) => {
   const today = todayString();
   const progress = await ensureProgressRow(userId);
-  const dayNumber = getDayNumber(progress.start_date, today);
+  const maxPassedCheckpoint = await getMaxPassedCheckpointDay(userId);
+  const dayNumber = Math.min(maxPassedCheckpoint + 1, TOTAL_DAYS);
 
   if (dayNumber > TOTAL_DAYS) {
     return { status: "finished" as const };
   }
 
-  if (await isTodayCompleted(userId, dayNumber)) {
+  if (await isLessonCompleted(userId, dayNumber)) {
     return { status: "already" as const };
   }
 

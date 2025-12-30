@@ -4,13 +4,14 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { getLessonForDay, getStepProgressForDay } from "@/lib/lessons";
 import { getCompletedDays, getDashboardData } from "@/lib/progress";
-import { getSkillCheckById, getSkillChecksForUser } from "@/lib/skill-checks";
+import { getSkillChecksForDay } from "@/lib/skill-checks";
+import { getPatternsForDay } from "@/lib/patterns";
+import { VisualCard } from "@/app/components/visual";
 import {
   completeDay,
   continueLesson,
   logout,
   submitAnswer,
-  submitSkillCheck,
 } from "./actions";
 
 export const runtime = "nodejs";
@@ -34,39 +35,6 @@ const getRank = (xp: number) => {
     max: current.max,
   };
 };
-
-const exampleCards = [
-  {
-    id: "charts",
-    title: "Good vs bad charts",
-    blurb: "Honest axes, clear scales, no clutter.",
-    points: [
-      "Start axes at zero when possible.",
-      "Label trends, not decorations.",
-      "One message per chart.",
-    ],
-  },
-  {
-    id: "cleaning",
-    title: "Clean vs messy data",
-    blurb: "Small fixes make numbers trustworthy.",
-    points: [
-      "Normalize categories and casing.",
-      "Remove duplicates before analysis.",
-      "Check dates and missing values.",
-    ],
-  },
-  {
-    id: "manager",
-    title: "What analysts send to managers",
-    blurb: "Short, clear, action-ready updates.",
-    points: [
-      "Lead with the decision needed.",
-      "State the metric and timeframe.",
-      "Offer one clear recommendation.",
-    ],
-  },
-];
 
 type DashboardPageProps = {
   searchParams?:
@@ -102,10 +70,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const requestedDay = Number(dayParam);
   const stepParam = typeof params?.step === "string" ? params.step : "";
   const requestedStep = Number(stepParam);
-  const checkParam = typeof params?.check === "string" ? params.check : "";
-  const resultParam = typeof params?.result === "string" ? params.result : "";
-  const exampleParam =
-    typeof params?.example === "string" ? params.example : "";
 
   if (view === "lesson") {
     const lesson = await getLessonForDay(dashboard.dayNumber);
@@ -152,10 +116,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
             {dashboard.completedAll ? (
               <div className="mimo-note">You finished all 84 days. Amazing work.</div>
-            ) : dashboard.todayCompleted ? (
-              <div className="mimo-note">Today is complete. Come back tomorrow.</div>
             ) : currentStep ? (
-              currentStep.type === "learn" || currentStep.type === "intuition" ? (
+              currentStep.type === "learn" ||
+              currentStep.type === "intuition" ||
+              currentStep.type === "visual" ? (
                 <div
                   className={`${
                     currentStep.type === "intuition"
@@ -166,15 +130,26 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   {currentStep.type === "intuition" ? (
                     <span className="mimo-intuition-tag">Intuition</span>
                   ) : null}
-                  {currentStep.title ? (
-                    <h2 className="mimo-learn-title">{currentStep.title}</h2>
-                  ) : null}
-                  {currentStep.body ? (
-                    <p className="mimo-learn-body">{currentStep.body}</p>
-                  ) : null}
-                  {currentStep.example ? (
-                    <p className="mimo-learn-example">{currentStep.example}</p>
-                  ) : null}
+                  {currentStep.type === "visual" ? (
+                    currentStep.visual ? (
+                      <VisualCard
+                        visual={currentStep.visual}
+                        title={currentStep.title ?? "Example"}
+                      />
+                    ) : null
+                  ) : (
+                    <>
+                      {currentStep.title ? (
+                        <h2 className="mimo-learn-title">{currentStep.title}</h2>
+                      ) : null}
+                      {currentStep.body ? (
+                        <p className="mimo-learn-body">{currentStep.body}</p>
+                      ) : null}
+                      {currentStep.example ? (
+                        <p className="mimo-learn-example">{currentStep.example}</p>
+                      ) : null}
+                    </>
+                  )}
                   <form action={continueLesson}>
                     <input type="hidden" name="stepId" value={currentStep.id} />
                     <button className="mimo-button soft-glow" type="submit">
@@ -240,7 +215,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             ) : lessonComplete ? (
               <form action={completeDay} className="mt-6">
                 <button className="mimo-button soft-glow" type="submit">
-                  Finish day {lesson.day}
+                  Take Checkpoint Test
                 </button>
               </form>
             ) : null}
@@ -285,7 +260,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <span>Read-only</span>
             </div>
 
-            {currentStep.type === "learn" || currentStep.type === "intuition" ? (
+            {currentStep.type === "learn" ||
+            currentStep.type === "intuition" ||
+            currentStep.type === "visual" ? (
               <div
                 className={`${
                   currentStep.type === "intuition"
@@ -296,15 +273,26 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 {currentStep.type === "intuition" ? (
                   <span className="mimo-intuition-tag">Intuition</span>
                 ) : null}
-                {currentStep.title ? (
-                  <h2 className="mimo-learn-title">{currentStep.title}</h2>
-                ) : null}
-                {currentStep.body ? (
-                  <p className="mimo-learn-body">{currentStep.body}</p>
-                ) : null}
-                {currentStep.example ? (
-                  <p className="mimo-learn-example">{currentStep.example}</p>
-                ) : null}
+                {currentStep.type === "visual" ? (
+                  currentStep.visual ? (
+                    <VisualCard
+                      visual={currentStep.visual}
+                      title={currentStep.title ?? "Example"}
+                    />
+                  ) : null
+                ) : (
+                  <>
+                    {currentStep.title ? (
+                      <h2 className="mimo-learn-title">{currentStep.title}</h2>
+                    ) : null}
+                    {currentStep.body ? (
+                      <p className="mimo-learn-body">{currentStep.body}</p>
+                    ) : null}
+                    {currentStep.example ? (
+                      <p className="mimo-learn-example">{currentStep.example}</p>
+                    ) : null}
+                  </>
+                )}
               </div>
             ) : (
               <div className="mimo-question-card float-in">
@@ -364,103 +352,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     );
   }
 
-  if (view === "skill") {
-    const skillChecks = await getSkillChecksForUser(user.id);
-    const skillCheck = checkParam
-      ? getSkillCheckById(checkParam)
-      : skillChecks[0] ?? null;
-    if (!skillCheck) {
-      redirect("/dashboard");
-    }
-
-    const resultState =
-      resultParam === "correct" || resultParam === "wrong" ? resultParam : "";
-
-    return (
-      <div className="mimo-shell dashboard-shell">
-        <div className="dashboard-wrap">
-          <Link className="dashboard-back" href="/dashboard">
-            Back to home
-          </Link>
-          <div className="lesson-card float-in">
-            <span className="lesson-pill">Skill Check</span>
-            <h1 className="lesson-title">{skillCheck.title}</h1>
-            <p className="lesson-body">{skillCheck.prompt}</p>
-            {resultState ? (
-              <div className={`feedback-card ${resultState}`}>
-                <div className="feedback-title">
-                  {resultState === "correct" ? "Correct" : "Not quite"}
-                </div>
-                <p className="feedback-body">{skillCheck.explanation}</p>
-                <div className="feedback-actions">
-                  <Link className="mimo-button" href="/dashboard">
-                    Continue
-                  </Link>
-                  {resultState === "wrong" ? (
-                    <Link
-                      className="mimo-button-outline"
-                      href={`/dashboard?view=skill&check=${skillCheck.id}`}
-                    >
-                      Try again
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <form action={submitSkillCheck} className="skill-form">
-                <input type="hidden" name="checkId" value={skillCheck.id} />
-                <div className="choice-grid">
-                  {skillCheck.choices.map((choice, index) => (
-                    <label className="choice-card" key={choice}>
-                      <input type="radio" name="choiceIndex" value={index} required />
-                      <span>{choice}</span>
-                    </label>
-                  ))}
-                </div>
-                <button className="mimo-button" type="submit">
-                  Check
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (view === "example") {
-    const example = exampleCards.find((card) => card.id === exampleParam);
-    if (!example) {
-      redirect("/dashboard");
-    }
-
-    return (
-      <div className="mimo-shell dashboard-shell">
-        <div className="dashboard-wrap">
-          <Link className="dashboard-back" href="/dashboard">
-            Back to home
-          </Link>
-          <div className="lesson-card float-in">
-            <span className="lesson-pill">Example</span>
-            <h1 className="lesson-title">{example.title}</h1>
-            <p className="lesson-body">{example.blurb}</p>
-            <div className="example-list">
-              {example.points.map((point) => (
-                <div className="example-item" key={point}>
-                  {point}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const weekStart = Math.floor((dashboard.dayNumber - 1) / 7) * 7 + 1;
   const weekDays = Array.from({ length: 7 }, (_, index) => weekStart + index);
 
-  const skillChecks = await getSkillChecksForUser(user.id);
+  const skillChecks = await getSkillChecksForDay(user.id, dashboard.dayNumber);
+  const patterns = await getPatternsForDay(user.id, dashboard.dayNumber);
 
   return (
     <div className="mimo-shell dashboard-shell">
@@ -529,14 +425,23 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <p className="section-body">
               {dashboard.completedAll
                 ? "You finished all 84 days."
-                : dashboard.todayCompleted
-                ? "Today is complete. Review or come back tomorrow."
+                : dashboard.canTakeCheckpoint
+                ? "Lesson complete. Pass the checkpoint to unlock the next day."
                 : "One focused step keeps your momentum strong."}
             </p>
           </div>
-          <Link className="mimo-button primary-cta" href="/dashboard?view=lesson">
-            Continue Learning
-          </Link>
+          {dashboard.completedAll ? null : (
+            <Link
+              className="mimo-button primary-cta"
+              href={
+                dashboard.canTakeCheckpoint
+                  ? `/checkpoint/${dashboard.dayNumber}`
+                  : "/dashboard?view=lesson"
+              }
+            >
+              {dashboard.canTakeCheckpoint ? "Take Checkpoint Test" : "Continue Learning"}
+            </Link>
+          )}
         </section>
 
         <section className="section-card float-in">
@@ -600,7 +505,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             {skillChecks.map((check) => (
               <Link
                 className="skill-card"
-                href={`/dashboard?view=skill&check=${check.id}`}
+                href={`/skill-check/${check.id}`}
                 key={check.id}
               >
                 <span className="skill-title">{check.title}</span>
@@ -622,17 +527,22 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <span className="section-label">Examples library</span>
               <h2 className="section-title">Ready-to-use patterns</h2>
             </div>
-            <span className="section-chip">3 quick reads</span>
+            <span className="section-chip">{patterns.length} quick reads</span>
           </div>
           <div className="card-grid">
-            {exampleCards.map((card) => (
+            {patterns.map((pattern) => (
               <Link
                 className="example-card"
-                href={`/dashboard?view=example&example=${card.id}`}
-                key={card.id}
+                href={`/patterns/${pattern.id}`}
+                key={pattern.id}
               >
-                <span className="skill-title">{card.title}</span>
-                <p className="skill-body">{card.blurb}</p>
+                <span className="skill-title">{pattern.title}</span>
+                <p className="skill-body">{pattern.description}</p>
+                <div className="skill-meta">
+                  <span className={`status-pill ${pattern.completed ? "done" : "todo"}`}>
+                    {pattern.completed ? "Completed" : "Quick read"}
+                  </span>
+                </div>
               </Link>
             ))}
           </div>

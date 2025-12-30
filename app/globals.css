@@ -297,6 +297,7 @@ button {
   font-size: 15px;
   line-height: 1.6;
   color: #e2e8f0;
+  white-space: pre-line;
 }
 
 .mimo-learn-example {
@@ -845,6 +846,39 @@ button {
   margin-top: 18px;
 }
 
+.pattern-sections {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.pattern-text {
+  border-radius: 16px;
+  border: 1px solid #e7ecf4;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.pattern-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.pattern-body {
+  font-size: 14px;
+  color: var(--mimo-muted);
+}
+
+.pattern-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--mimo-muted);
+  font-size: 13px;
+  display: grid;
+  gap: 6px;
+}
+
 .dashboard-back {
   display: inline-flex;
   align-items: center;
@@ -931,6 +965,131 @@ button {
   padding: 12px;
   font-size: 14px;
   color: var(--mimo-text);
+}
+
+.visual-card {
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.mimo-intuition-card .visual-card {
+  background: rgba(248, 211, 140, 0.25);
+  border-color: rgba(148, 120, 60, 0.25);
+}
+
+.visual-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: inherit;
+}
+
+.visual-note {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.mimo-intuition-card .visual-note {
+  color: rgba(31, 41, 55, 0.7);
+}
+
+.visual-table-wrap {
+  overflow-x: auto;
+}
+
+.visual-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.visual-table th,
+.visual-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.visual-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.mimo-intuition-card .visual-table th {
+  color: rgba(31, 41, 55, 0.6);
+}
+
+.visual-highlight {
+  font-weight: 700;
+  color: #7be4d1;
+}
+
+.mimo-intuition-card .visual-highlight {
+  color: #9a3412;
+}
+
+.visual-bar {
+  display: grid;
+  gap: 8px;
+}
+
+.visual-bar-row {
+  display: grid;
+  grid-template-columns: 1fr 3fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.visual-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+  overflow: hidden;
+}
+
+.visual-bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #18b39c, #7be4d1);
+}
+
+.visual-line {
+  display: grid;
+  gap: 10px;
+}
+
+.visual-line-track {
+  position: relative;
+  height: 120px;
+  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.2);
+}
+
+.visual-line-point {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #7be4d1;
+  transform: translate(-50%, 50%);
+}
+
+.visual-line-labels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.mimo-intuition-card .visual-line-labels {
+  color: rgba(31, 41, 55, 0.6);
 }
 
 @keyframes fill-up {

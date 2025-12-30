@@ -1,4 +1,4 @@
-import "server-only";
+import "./server-only";
 
 import bcrypt from "bcryptjs";
 import crypto from "crypto";

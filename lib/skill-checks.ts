@@ -1,88 +1,130 @@
-import "server-only";
+import "./server-only";
+
 import { getDb } from "./db";
+import { ensureContentSeeded } from "./lessons";
 import { ensureProgressRow } from "./progress";
 
-export type SkillCheck = {
+type SkillCheckRow = {
   id: string;
+  day_number: number;
   title: string;
   prompt: string;
+  type: string;
+  choices_json: unknown;
+  answer_json: unknown;
+  explanation: string;
+  xp_reward: number;
+};
+
+type SkillCheck = {
+  id: string;
+  dayNumber: number;
+  title: string;
+  prompt: string;
+  type: "mcq" | "fix";
   choices: string[];
-  correctIndex: number;
+  answer: { correctIndex: number };
   explanation: string;
   xpReward: number;
 };
 
-const SKILL_CHECKS: SkillCheck[] = [
-  {
-    id: "misleading-chart",
-    title: "Spot the misleading chart",
-    prompt:
-      "A chart starts its y-axis at 90% to show a 2% increase. What would you tell your manager?",
-    choices: [
-      "The growth is massive; highlight the spike.",
-      "The scale is misleading; show the y-axis from zero.",
-      "Remove the axis to keep the chart clean.",
-      "Use a 3D chart to emphasize the change.",
-    ],
-    correctIndex: 1,
-    explanation:
-      "A cropped axis exaggerates change. Use a zero baseline for honest context.",
-    xpReward: 5,
-  },
-  {
-    id: "right-metric",
-    title: "Choose the right metric",
-    prompt:
-      "You want to track if users are getting value from a daily habit app. Which metric is best?",
-    choices: [
-      "Total downloads",
-      "Daily active users",
-      "Number of push notifications sent",
-      "App store rating only",
-    ],
-    correctIndex: 1,
-    explanation:
-      "Daily active users reflects ongoing usage and value more than downloads.",
-    xpReward: 5,
-  },
-  {
-    id: "clean-category",
-    title: "Clean messy categories",
-    prompt:
-      "A column mixes 'NY', 'New York', and 'new york'. What is the best first step?",
-    choices: [
-      "Create a standard mapping and normalize values.",
-      "Delete the column to avoid confusion.",
-      "Sort the column descending.",
-      "Convert numbers to text.",
-    ],
-    correctIndex: 0,
-    explanation:
-      "Standardize labels first so counts and groups are accurate.",
-    xpReward: 5,
-  },
-];
+const toStringArray = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item));
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
 
-export const getSkillCheckById = (id: string) =>
-  SKILL_CHECKS.find((check) => check.id === id) ?? null;
+const toAnswer = (value: unknown) => {
+  if (!value) {
+    return { correctIndex: 0 };
+  }
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as { correctIndex: number };
+    } catch {
+      return { correctIndex: 0 };
+    }
+  }
+  if (typeof value === "object") {
+    return value as { correctIndex: number };
+  }
+  return { correctIndex: 0 };
+};
 
-export const getSkillChecksForUser = async (userId: number) => {
+const mapSkillCheck = (row: SkillCheckRow): SkillCheck => ({
+  id: String(row.id),
+  dayNumber: Number(row.day_number),
+  title: String(row.title),
+  prompt: String(row.prompt),
+  type: row.type === "fix" ? "fix" : "mcq",
+  choices: toStringArray(row.choices_json),
+  answer: toAnswer(row.answer_json),
+  explanation: String(row.explanation),
+  xpReward: Number(row.xp_reward),
+});
+
+export const getSkillCheckById = async (id: string) => {
+  await ensureContentSeeded();
   const db = await getDb();
   const result = await db`
-    SELECT skill_check_id, is_correct
-    FROM user_skill_checks
-    WHERE user_id = ${userId}
+    SELECT id, day_number, title, prompt, type, choices_json, answer_json, explanation, xp_reward
+    FROM skill_checks
+    WHERE id = ${id}
+    LIMIT 1
   `;
-  const completed = new Map<string, boolean>();
-  for (const row of result.rows) {
-    completed.set(String(row.skill_check_id), Boolean(row.is_correct));
-  }
+  const row = result.rows[0] as SkillCheckRow | undefined;
+  return row ? mapSkillCheck(row) : null;
+};
 
-  return SKILL_CHECKS.map((check) => ({
-    ...check,
-    completed: completed.has(check.id),
-    completedCorrect: completed.get(check.id) ?? false,
-  }));
+export const getSkillCheckCompletion = async (userId: number, checkId: string) => {
+  const db = await getDb();
+  const result = await db`
+    SELECT completed_at
+    FROM user_skill_check_completions
+    WHERE user_id = ${userId} AND skill_check_id = ${checkId}
+    LIMIT 1
+  `;
+  return Boolean(result.rows[0]);
+};
+
+export const getSkillChecksForDay = async (userId: number, dayNumber: number) => {
+  await ensureContentSeeded();
+  const db = await getDb();
+  const result = await db`
+    SELECT sc.id,
+      sc.day_number,
+      sc.title,
+      sc.prompt,
+      sc.type,
+      sc.choices_json,
+      sc.answer_json,
+      sc.explanation,
+      sc.xp_reward,
+      usc.completed_at
+    FROM skill_checks sc
+    LEFT JOIN user_skill_check_completions usc
+      ON usc.skill_check_id = sc.id AND usc.user_id = ${userId}
+    WHERE sc.day_number = ${dayNumber}
+    ORDER BY sc.id
+  `;
+  return result.rows.map((row) => {
+    const mapped = mapSkillCheck(row as SkillCheckRow);
+    return {
+      ...mapped,
+      completed: Boolean((row as { completed_at?: string | null }).completed_at),
+    };
+  });
 };
 
 export const recordSkillCheckAnswer = async (
@@ -90,7 +132,7 @@ export const recordSkillCheckAnswer = async (
   checkId: string,
   selectedIndex: number
 ) => {
-  const check = getSkillCheckById(checkId);
+  const check = await getSkillCheckById(checkId);
   if (
     !check ||
     Number.isNaN(selectedIndex) ||
@@ -101,15 +143,8 @@ export const recordSkillCheckAnswer = async (
   }
 
   await ensureProgressRow(userId);
-  const isCorrect = selectedIndex === check.correctIndex;
+  const isCorrect = selectedIndex === check.answer.correctIndex;
   const db = await getDb();
-  const existing = await db`
-    SELECT is_correct
-    FROM user_skill_checks
-    WHERE user_id = ${userId} AND skill_check_id = ${check.id}
-    LIMIT 1
-  `;
-  const previouslyCorrect = Boolean(existing.rows[0]?.is_correct);
 
   await db`
     INSERT INTO user_skill_checks (user_id, skill_check_id, selected_index, is_correct)
@@ -120,8 +155,21 @@ export const recordSkillCheckAnswer = async (
           completed_at = NOW()
   `;
 
+  const existing = await db`
+    SELECT completed_at
+    FROM user_skill_check_completions
+    WHERE user_id = ${userId} AND skill_check_id = ${check.id}
+    LIMIT 1
+  `;
+  const alreadyCompleted = Boolean(existing.rows[0]);
+
   let xpAwarded = 0;
-  if (isCorrect && !previouslyCorrect) {
+  if (isCorrect && !alreadyCompleted) {
+    await db`
+      INSERT INTO user_skill_check_completions (user_id, skill_check_id)
+      VALUES (${userId}, ${check.id})
+      ON CONFLICT (user_id, skill_check_id) DO NOTHING
+    `;
     xpAwarded = check.xpReward;
     await db`
       UPDATE user_progress

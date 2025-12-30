@@ -11,7 +11,6 @@ import {
   recordLearnStep,
 } from "@/lib/lessons";
 import { completeToday, getDashboardData } from "@/lib/progress";
-import { recordSkillCheckAnswer } from "@/lib/skill-checks";
 
 export const logout = async () => {
   const cookieStore = await cookies();
@@ -54,7 +53,7 @@ export const completeDay = async () => {
   }
 
   await completeToday(user.id);
-  redirect("/dashboard");
+  redirect(`/checkpoint/${lesson.day}`);
 };
 
 export const submitAnswer = async (formData: FormData) => {
@@ -76,7 +75,7 @@ export const submitAnswer = async (formData: FormData) => {
   }
 
   const step = await getStepById(stepId);
-  if (!step || step.type === "learn" || step.type === "intuition") {
+  if (!step || step.type === "learn" || step.type === "intuition" || step.type === "visual") {
     redirect("/dashboard");
   }
 
@@ -116,40 +115,9 @@ export const continueLesson = async (formData: FormData) => {
     redirect("/dashboard");
   }
 
-  if (step.type === "learn" || step.type === "intuition") {
+  if (step.type === "learn" || step.type === "intuition" || step.type === "visual") {
     await recordLearnStep(user.id, stepId);
   }
 
   redirect("/dashboard?view=lesson");
-};
-
-export const submitSkillCheck = async (formData: FormData) => {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get("session")?.value;
-  if (!sessionId) {
-    redirect("/login");
-  }
-
-  const user = await getSessionUser(sessionId);
-  if (!user) {
-    redirect("/login");
-  }
-
-  const checkId = String(formData.get("checkId") ?? "");
-  const choiceValue = formData.get("choiceIndex");
-  const choiceIndex = Number(choiceValue);
-
-  if (!checkId || Number.isNaN(choiceIndex)) {
-    redirect("/dashboard");
-  }
-
-  const result = await recordSkillCheckAnswer(user.id, checkId, choiceIndex);
-  if (!result.ok) {
-    redirect("/dashboard");
-  }
-
-  const outcome = result.correct ? "correct" : "wrong";
-  redirect(
-    `/dashboard?view=skill&check=${encodeURIComponent(checkId)}&result=${outcome}`
-  );
 };

@@ -1,11 +1,14 @@
-﻿import "server-only";
+import "./server-only";
 
 import { getDb } from "./db";
+import { parseVisual, Visual } from "./visual";
 
 type LessonRow = {
   day: number;
   title: string;
   micro_goal: string;
+  recap_bullets: unknown;
+  real_world_line: string | null;
 };
 
 type QuestionRow = {
@@ -38,6 +41,7 @@ type LessonStepRow = {
   choices: unknown;
   correct_index: number | null;
   explanation: string | null;
+  visual_json: unknown;
 };
 
 type StepProgressRow = {
@@ -62,6 +66,8 @@ type Lesson = {
   day: number;
   title: string;
   microGoal: string;
+  recapBullets: string[];
+  realWorldLine: string;
   steps: LessonStep[];
 };
 
@@ -78,7 +84,7 @@ type LessonStep = {
   id: number;
   lessonDay: number;
   sortOrder: number;
-  type: "intuition" | "learn" | "mcq" | "fix";
+  type: "intuition" | "learn" | "visual" | "mcq" | "fix";
   title?: string | null;
   body?: string | null;
   example?: string | null;
@@ -86,10 +92,11 @@ type LessonStep = {
   choices?: string[];
   correctIndex?: number | null;
   explanation?: string | null;
+  visual?: Visual | null;
 };
 
 type LessonStepSeed = {
-  type: "intuition" | "learn" | "mcq" | "fix";
+  type: "intuition" | "learn" | "visual" | "mcq" | "fix";
   title?: string;
   body?: string;
   example?: string;
@@ -97,6 +104,7 @@ type LessonStepSeed = {
   choices?: string[];
   correctIndex?: number;
   explanation?: string;
+  visual?: Visual;
 };
 
 type Scenario = Record<string, string>;
@@ -528,6 +536,23 @@ const week2MicroGoals = [
 ];
 
 const toOptions = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item));
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const toStringArray = (value: unknown) => {
   if (Array.isArray(value)) {
     return value.map((item) => String(item));
   }
@@ -1229,12 +1254,150 @@ const buildQuestions = (weekIndex: number, scenario: Scenario) => {
 
 const buildQuestionSteps = (questions: QuestionSeed[]): LessonStepSeed[] =>
   questions.map((question) => ({
-    type: question.type === "fix_the_mistake" ? "fix" : "mcq",
+    type: question.type === "fix_the_mistake" ? ("fix" as const) : ("mcq" as const),
     prompt: question.prompt,
     choices: question.options,
     correctIndex: question.correctIndex,
     explanation: toExplanation(question.feedbackCorrect || question.feedbackIncorrect),
   }));
+
+const buildTableVisual = (dayNumber: number, scenario: Scenario): Visual => {
+  const headerLeft =
+    scenario.dimension ||
+    scenario.segment ||
+    scenario.channel ||
+    scenario.plan ||
+    scenario.category ||
+    scenario.feature ||
+    "Group";
+  const headerRight = scenario.metric || "Result";
+  const base = 40 + dayNumber * 2;
+  return {
+    type: "table",
+    headers: [headerLeft, headerRight],
+    rows: [
+      [`${headerLeft} A`, String(base + 12)],
+      [`${headerLeft} B`, String(base + 4)],
+      [`${headerLeft} C`, String(base + 18)],
+    ],
+    highlights: [{ r: 2, c: 1, label: "highest" }],
+    note: "Example snapshot",
+  };
+};
+
+const buildVisualStep = (dayNumber: number, scenario: Scenario): LessonStepSeed => ({
+  type: "visual" as const,
+  title: "Example snapshot",
+  visual: buildTableVisual(dayNumber, scenario),
+});
+
+const recapBulletsByWeek: string[][] = [
+  [
+    "Start with one clear question.",
+    "Tie the question to a decision.",
+    "Share one next step.",
+  ],
+  [
+    "Clean labels before counting.",
+    "Standardize dates and text.",
+    "Keep a clean copy to reuse.",
+  ],
+  [
+    "Summarize with a pivot.",
+    "Sort to see the top drivers.",
+    "Keep visuals simple and clear.",
+  ],
+  [
+    "Define the goal first.",
+    "Build the core calculation.",
+    "Share one clear takeaway.",
+  ],
+  [
+    "Select only needed columns.",
+    "Filter to the right segment.",
+    "Order results for review.",
+  ],
+  [
+    "Group before you summarize.",
+    "Join on the right keys.",
+    "Avoid double counting.",
+  ],
+  [
+    "Pick the right chart.",
+    "Use clean hierarchy.",
+    "Highlight one key change.",
+  ],
+  [
+    "Start with the dashboard goal.",
+    "Model data cleanly.",
+    "Validate before sharing.",
+  ],
+  [
+    "Load files correctly.",
+    "Clean columns first.",
+    "Handle missing values.",
+  ],
+  [
+    "Group to compare segments.",
+    "Check trends over time.",
+    "Summarize with one clear line.",
+  ],
+  [
+    "Compare like with like.",
+    "Watch guardrail signals.",
+    "Recommend the next step.",
+  ],
+  [
+    "Clarify the decision.",
+    "Explain in plain language.",
+    "Practice the story.",
+  ],
+];
+
+const managerLineByWeek = [
+  (scenario: Scenario) =>
+    `What you'd tell your manager: ${scenario.metric} moved for ${scenario.segment || "one group"}, so we should check the step where users drop.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: The sheet is clean, so ${scenario.metric} counts are now reliable.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: The pivot shows ${scenario.metric} is highest for ${scenario.dimension || "one group"}.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: The project highlights ${scenario.metric} by ${scenario.dimension || "segment"}; next is to act on the top driver.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: The query isolates ${scenario.segment || "the target segment"} and shows ${scenario.metric} clearly.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: After joining ${scenario.left} and ${scenario.right}, ${scenario.metric} stands out by ${scenario.dimension || "group"}.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: The dashboard makes ${scenario.metric} by ${scenario.segment || "segment"} easy to track.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: The ${scenario.project} view keeps ${scenario.metric} front and center with clean filters.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: The CSV is clean, so ${scenario.metric} by ${scenario.column || "category"} is trustworthy.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: Grouping shows ${scenario.metric} differs by ${scenario.dimension || "segment"}; we should focus on the top group.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: Cohort comparisons show ${scenario.metric} shifted; we should test the next change carefully.`,
+  (scenario: Scenario) =>
+    `What you'd tell your manager: For ${scenario.case}, the key driver is ${scenario.metric}; my recommendation is a focused follow-up.`,
+];
+
+const buildRecapData = (weekIndex: number, scenario: Scenario) => {
+  const bullets =
+    recapBulletsByWeek[weekIndex] ?? recapBulletsByWeek[recapBulletsByWeek.length - 1];
+  const realWorldLine =
+    managerLineByWeek[weekIndex]?.(scenario) ??
+    "What you'd tell your manager: The key change is clear, and we have a next step.";
+  const body = `${bullets.map((bullet) => `- ${bullet}`).join("\n")}\n${realWorldLine}`;
+  return {
+    recapBullets: bullets,
+    realWorldLine,
+    step: {
+      type: "learn" as const,
+      title: "Recap",
+      body,
+    },
+  };
+};
 
 const week1Scaffolds: Array<(scenario: Scenario) => WeekScaffold> = [
   (scenario: Scenario) => ({
@@ -1544,7 +1707,11 @@ const week2Scaffolds: Array<(scenario: Scenario) => WeekScaffold> = [
   }),
 ];
 
-const buildWeek1LessonSteps = (dayIndex: number, scenario: Scenario) => {
+const buildWeek1LessonSteps = (
+  dayIndex: number,
+  scenario: Scenario,
+  dayNumber: number
+): LessonStepSeed[] => {
   const scaffold = week1Scaffolds[dayIndex]?.(scenario);
   if (!scaffold) {
     return buildQuestionSteps(buildWeek1Questions(scenario));
@@ -1553,12 +1720,16 @@ const buildWeek1LessonSteps = (dayIndex: number, scenario: Scenario) => {
   return [
     scaffold.intuition,
     ...scaffold.learn,
+    buildVisualStep(dayNumber, scenario),
     ...buildQuestionSteps(questions),
-    ...(scaffold.recap ? [scaffold.recap] : []),
   ];
 };
 
-const buildWeek2LessonSteps = (dayIndex: number, scenario: Scenario) => {
+const buildWeek2LessonSteps = (
+  dayIndex: number,
+  scenario: Scenario,
+  dayNumber: number
+): LessonStepSeed[] => {
   const scaffold = week2Scaffolds[dayIndex]?.(scenario);
   if (!scaffold) {
     return buildQuestionSteps(buildWeek2Questions(scenario));
@@ -1567,6 +1738,7 @@ const buildWeek2LessonSteps = (dayIndex: number, scenario: Scenario) => {
   return [
     scaffold.intuition,
     ...scaffold.learn,
+    buildVisualStep(dayNumber, scenario),
     ...buildQuestionSteps(questions),
   ];
 };
@@ -1664,38 +1836,108 @@ const defaultIntuitionByWeek = [
 
 const buildDefaultLessonSteps = (
   weekIndex: number,
-  dayTitle: string,
+  dayNumber: number,
   microGoal: string,
   scenario: Scenario
 ): LessonStepSeed[] => {
   const intuition: LessonStepSeed =
     defaultIntuitionByWeek[weekIndex]?.() ?? {
-      type: "intuition",
+      type: "intuition" as const,
       title: "Picture this",
       body: "You arrange items into simple groups so the important ones stand out.",
     };
   const prompt = buildScenarioPrompt(scenario);
   const learnIntro: LessonStepSeed = {
-    type: "learn",
+    type: "learn" as const,
     title: "What you will do",
     body: microGoal,
     example: `Example: ${prompt}`,
   };
   const learnWhy: LessonStepSeed = {
-    type: "learn",
+    type: "learn" as const,
     title: "Why it matters",
     body: `This skill helps you answer questions like: ${prompt}`,
   };
-  return [intuition, learnIntro, learnWhy];
+  return [intuition, learnIntro, learnWhy, buildVisualStep(dayNumber, scenario)];
 };
 
-const buildLessons = () => {
-  const lessons: {
-    day: number;
-    title: string;
-    microGoal: string;
-    steps: LessonStepSeed[];
-  }[] = [];
+type LessonSeed = {
+  day: number;
+  title: string;
+  microGoal: string;
+  recapBullets: string[];
+  realWorldLine: string;
+  steps: LessonStepSeed[];
+};
+
+type SkillCheckSeed = {
+  id: string;
+  dayNumber: number;
+  title: string;
+  prompt: string;
+  type: "mcq" | "fix";
+  choices: string[];
+  answer: { correctIndex: number };
+  explanation: string;
+  xpReward: number;
+};
+
+type PatternSection =
+  | {
+      type: "text";
+      title?: string;
+      body: string;
+      bullets?: string[];
+    }
+  | {
+      type: "visual";
+      title?: string;
+      visual: Visual;
+    };
+
+type PatternContent = {
+  intro: string;
+  sections: PatternSection[];
+  takeaway: string;
+};
+
+type PatternSeed = {
+  id: string;
+  dayNumber: number;
+  title: string;
+  description: string;
+  content: PatternContent;
+};
+
+type CheckpointQuestionSeed = {
+  id: string;
+  checkpointTestId: string;
+  type: "mcq" | "fix";
+  prompt: string;
+  choices: string[];
+  answer: { correctIndex: number };
+  explanation: string;
+  difficulty: "easy" | "medium" | "hard";
+};
+
+type CheckpointTestSeed = {
+  id: string;
+  dayNumber: number;
+  title: string;
+  passPercent: number;
+  xpReward: number;
+  questions: CheckpointQuestionSeed[];
+};
+
+type ProgramContent = {
+  lessons: LessonSeed[];
+  skillChecks: SkillCheckSeed[];
+  patterns: PatternSeed[];
+  checkpointTests: CheckpointTestSeed[];
+};
+
+const buildLessons = (): LessonSeed[] => {
+  const lessons: LessonSeed[] = [];
 
   let dayCounter = 1;
   weekPlans.forEach((week, weekIndex) => {
@@ -1703,14 +1945,14 @@ const buildLessons = () => {
       const scenario = week.scenarios[dayIndex % week.scenarios.length];
       let steps: LessonStepSeed[];
       if (weekIndex === 0) {
-        steps = buildWeek1LessonSteps(dayIndex, scenario);
+        steps = buildWeek1LessonSteps(dayIndex, scenario, dayCounter);
       } else if (weekIndex === 1) {
-        steps = buildWeek2LessonSteps(dayIndex, scenario);
+        steps = buildWeek2LessonSteps(dayIndex, scenario, dayCounter);
       } else {
         steps = [
           ...buildDefaultLessonSteps(
             weekIndex,
-            title,
+            dayCounter,
             week.microGoals[dayIndex],
             scenario
           ),
@@ -1725,10 +1967,15 @@ const buildLessons = () => {
           ? week2MicroGoals[dayIndex]
           : week.microGoals[dayIndex];
 
+      const recap = buildRecapData(weekIndex, scenario);
+      steps = [...steps, recap.step];
+
       lessons.push({
         day: dayCounter,
         title: `Day ${dayCounter}: ${title}`,
         microGoal,
+        recapBullets: recap.recapBullets,
+        realWorldLine: recap.realWorldLine,
         steps,
       });
       dayCounter += 1;
@@ -1738,31 +1985,1214 @@ const buildLessons = () => {
   return lessons;
 };
 
-const ensureSeeded = async () => {
+const makeSkillCheck = (
+  dayNumber: number,
+  index: number,
+  data: Omit<SkillCheckSeed, "id" | "dayNumber" | "xpReward"> & { xpReward?: number }
+): SkillCheckSeed => ({
+  id: `day-${dayNumber}-skill-${index}`,
+  dayNumber,
+  xpReward: data.xpReward ?? 5,
+  title: data.title,
+  prompt: data.prompt,
+  type: data.type,
+  choices: data.choices,
+  answer: data.answer,
+  explanation: data.explanation,
+});
+
+const buildSkillChecksForDay = (
+  dayNumber: number,
+  weekIndex: number,
+  scenario: Scenario
+): SkillCheckSeed[] => {
+  let checks: SkillCheckSeed[] = [];
+  switch (weekIndex) {
+    case 0:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Pick the sharper question",
+          prompt: `You run a ${scenario.product}. Which question is easiest to act on?`,
+          type: "mcq",
+          choices: [
+            `Which step causes the biggest drop in ${scenario.metric}?`,
+            "Do users like the product?",
+            `How many ${scenario.vanityMetric} did we get?`,
+            "Is the market competitive?",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Actionable questions point to a specific step.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Highlight the right number",
+          prompt: "In a weekly update, which number should lead?",
+          type: "mcq",
+          choices: [
+            scenario.metric || "Activation rate",
+            scenario.vanityMetric || "App installs",
+            "Total followers",
+            "Press mentions",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Lead with the number tied to outcomes.",
+        }),
+      ];
+      break;
+    case 1:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "First cleanup move",
+          prompt: `In ${scenario.file}, ${scenario.column} has extra spaces. What is the first fix?`,
+          type: "fix",
+          choices: [
+            "Trim spaces and standardize casing.",
+            "Sort the column by length.",
+            "Delete the entire column.",
+            "Hide the column.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Standardize labels before counting.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Pick the right formula",
+          prompt: `Which formula counts rows where ${scenario.metric} is "High"?`,
+          type: "mcq",
+          choices: ["COUNTIF", "SUMIF", "AVERAGE", "IF"],
+          answer: { correctIndex: 0 },
+          explanation: "COUNTIF counts rows that match a condition.",
+        }),
+      ];
+      break;
+    case 2:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Best Excel tool",
+          prompt: `You need ${scenario.metric} by ${scenario.dimension}. What is the fastest Excel tool?`,
+          type: "mcq",
+          choices: ["Pivot table", "Manual sorting", "Freeze panes", "Text to columns"],
+          answer: { correctIndex: 0 },
+          explanation: "Pivot tables summarize quickly.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Find the top driver",
+          prompt: `To surface the biggest ${scenario.dimension}, what should you do?`,
+          type: "fix",
+          choices: [
+            "Sort the summary column descending.",
+            "Hide the smallest values.",
+            "Delete half the rows.",
+            "Change the chart color.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Sorting shows the top drivers.",
+        }),
+      ];
+      break;
+    case 3:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Project kickoff step",
+          prompt: `For ${scenario.project}, what comes first?`,
+          type: "mcq",
+          choices: [
+            "Define the goal and success metric.",
+            "Pick chart colors.",
+            "Share a draft slide.",
+            "Hide missing values.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Start with the goal before building.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Share the insight",
+          prompt: "Which update is best to share?",
+          type: "mcq",
+          choices: [
+            "One clear change and the next action.",
+            "Every row in the sheet.",
+            "A list of formulas only.",
+            "No recommendation.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Keep it short and actionable.",
+        }),
+      ];
+      break;
+    case 4:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Filter rows",
+          prompt: "Which SQL clause filters rows?",
+          type: "mcq",
+          choices: ["WHERE", "GROUP BY", "ORDER BY", "LIMIT"],
+          answer: { correctIndex: 0 },
+          explanation: "WHERE filters rows.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Target segment",
+          prompt: `Which clause limits results to ${scenario.segment}?`,
+          type: "mcq",
+          choices: ["WHERE", "SELECT", "FROM", "JOIN"],
+          answer: { correctIndex: 0 },
+          explanation: "WHERE sets the filter condition.",
+        }),
+      ];
+      break;
+    case 5:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Group the results",
+          prompt: `To summarize ${scenario.metric} by ${scenario.dimension}, which clause is required?`,
+          type: "mcq",
+          choices: ["GROUP BY", "ORDER BY", "WHERE", "LIMIT"],
+          answer: { correctIndex: 0 },
+          explanation: "GROUP BY defines the aggregation group.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Filter after grouping",
+          prompt: "Which clause filters aggregated results?",
+          type: "mcq",
+          choices: ["HAVING", "WHERE", "JOIN", "SELECT"],
+          answer: { correctIndex: 0 },
+          explanation: "HAVING filters after aggregation.",
+        }),
+      ];
+      break;
+    case 6:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Pick the chart",
+          prompt: `To compare ${scenario.metric} across ${scenario.segment}, what chart fits best?`,
+          type: "mcq",
+          choices: ["Bar chart", "Pie chart", "Scatter plot", "Single KPI card"],
+          answer: { correctIndex: 0 },
+          explanation: "Bar charts compare categories clearly.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "KPI card focus",
+          prompt: "A KPI card should show:",
+          type: "mcq",
+          choices: [
+            "One headline number.",
+            "All filters and tables.",
+            "Raw row data.",
+            "Every chart on the page.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "KPI cards spotlight one number.",
+        }),
+      ];
+      break;
+    case 7:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Dashboard goal",
+          prompt: `Before building a ${scenario.project} dashboard, do what?`,
+          type: "mcq",
+          choices: [
+            "Write the single question it answers.",
+            "Choose colors.",
+            "Add every chart type.",
+            "Export CSVs.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "The goal drives the layout.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Keep filters clean",
+          prompt: "Filters should be added for:",
+          type: "mcq",
+          choices: [
+            "Common segments people ask about.",
+            "Every column in the dataset.",
+            "Random categories.",
+            "Hidden fields only.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Filters should match frequent questions.",
+        }),
+      ];
+      break;
+    case 8:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Load a CSV",
+          prompt: `How do you load ${scenario.file} in pandas?`,
+          type: "mcq",
+          choices: ["pd.read_csv()", "pd.load()", "pd.open()", "pd.import_csv()"],
+          answer: { correctIndex: 0 },
+          explanation: "read_csv loads a CSV file.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Clean column names",
+          prompt: "Which step standardizes column names?",
+          type: "fix",
+          choices: [
+            "df.columns = df.columns.str.strip().str.lower()",
+            "df.sort_values()",
+            "df.dropna()",
+            "df.describe()",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Strip and lower names before analysis.",
+        }),
+      ];
+      break;
+    case 9:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Group in pandas",
+          prompt: `Which pattern summarizes ${scenario.metric} by ${scenario.dimension}?`,
+          type: "mcq",
+          choices: [
+            `df.groupby("${scenario.dimension}")["${scenario.metric}"].sum()`,
+            "df.sort_values()",
+            "df.dropna()",
+            "df.rename()",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Use groupby with a summary.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Trend check",
+          prompt: "What is the first step before plotting a trend?",
+          type: "mcq",
+          choices: [
+            "Sort by date.",
+            "Drop the date column.",
+            "Shuffle the data.",
+            "Convert to text only.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Sort before plotting time series.",
+        }),
+      ];
+      break;
+    case 10:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Define a cohort",
+          prompt: "A cohort is grouped by:",
+          type: "mcq",
+          choices: [
+            "A shared start date.",
+            "A random sample.",
+            "Only top spenders.",
+            "Anyone active today.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Cohorts share a start event.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Guardrail check",
+          prompt: "A guardrail metric exists to:",
+          type: "mcq",
+          choices: [
+            "Catch unintended harm.",
+            "Make charts prettier.",
+            "Replace all KPIs.",
+            "Slow down reporting.",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Guardrails protect users and the business.",
+        }),
+      ];
+      break;
+    case 11:
+      checks = [
+        makeSkillCheck(dayNumber, 1, {
+          title: "Clarify the case",
+          prompt: "In a case interview, ask first:",
+          type: "mcq",
+          choices: [
+            "What decision will this support?",
+            "Which chart do you prefer?",
+            "Can we skip cleaning?",
+            "What is the font size?",
+          ],
+          answer: { correctIndex: 0 },
+          explanation: "Start with the decision.",
+        }),
+        makeSkillCheck(dayNumber, 2, {
+          title: "Story structure",
+          prompt: "The best structure is:",
+          type: "mcq",
+          choices: ["Context, insight, action.", "Tools, code, appendix.", "Random facts.", "Only the chart title."],
+          answer: { correctIndex: 0 },
+          explanation: "Keep the story short and clear.",
+        }),
+      ];
+      break;
+    default:
+      checks = [];
+      break;
+  }
+
+  if (checks.length < 3) {
+    checks.push(
+      makeSkillCheck(dayNumber, checks.length + 1, {
+        title: "Manager-ready line",
+        prompt: `Which update best helps your manager act on ${scenario.metric || "the key result"}?`,
+        type: "mcq",
+        choices: [
+          "State the change, the driver, and one next step.",
+          "Share the full raw table.",
+          "List only tools used.",
+          "Hold the update until next month.",
+        ],
+        answer: { correctIndex: 0 },
+        explanation: "Short, action-ready updates work best.",
+      })
+    );
+  }
+
+  return checks;
+};
+const buildPatternsForDay = (
+  dayNumber: number,
+  weekIndex: number,
+  scenario: Scenario,
+  title: string
+): PatternSeed[] => {
+  const managerLine =
+    managerLineByWeek[weekIndex]?.(scenario) ??
+    "What you'd tell your manager: The update is clear and actionable.";
+  const goodBadTable: Visual = {
+    type: "table",
+    headers: ["Version", "What it says"],
+    rows: [
+      ["Bad", "Overloaded and unclear."],
+      ["Good", "One message with a clear next step."],
+    ],
+    note: "Quick comparison",
+  };
+  const managerTable: Visual = {
+    type: "table",
+    headers: ["Line", "Example"],
+    rows: [
+      ["Context", `${scenario.metric || "Key metric"} this week`],
+      ["Impact", `${scenario.segment || "Main segment"} moved the most`],
+      ["Next step", "Review the top driver and adjust"],
+    ],
+  };
+
+  return [
+    {
+      id: `day-${dayNumber}-pattern-1`,
+      dayNumber,
+      title: `Good vs bad: ${title}`,
+      description: "Quick example of clean storytelling.",
+      content: {
+        intro: "Use this as a template when presenting the day.",
+        sections: [
+          { type: "visual", title: "Example", visual: goodBadTable },
+          {
+            type: "text",
+            title: "Why it works",
+            body: "The good version focuses on one message and one action.",
+          },
+        ],
+        takeaway: managerLine,
+      },
+    },
+    {
+      id: `day-${dayNumber}-pattern-2`,
+      dayNumber,
+      title: "Manager update template",
+      description: "Ready-to-use update with a simple structure.",
+      content: {
+        intro: "Keep the update short and decision-ready.",
+        sections: [
+          { type: "visual", title: "Template", visual: managerTable },
+          {
+            type: "text",
+            title: "Tip",
+            body: "Replace each line with a single sentence.",
+          },
+        ],
+        takeaway: managerLine,
+      },
+    },
+  ];
+};
+
+type CheckpointQuestionBase = Omit<CheckpointQuestionSeed, "id" | "checkpointTestId">;
+
+const checkpointMcq = (
+  prompt: string,
+  choices: string[],
+  correctIndex: number,
+  explanation: string,
+  difficulty: "easy" | "medium" | "hard"
+): CheckpointQuestionBase => ({
+  type: "mcq" as const,
+  prompt,
+  choices,
+  answer: { correctIndex },
+  explanation,
+  difficulty,
+});
+
+const checkpointFix = (
+  prompt: string,
+  choices: string[],
+  correctIndex: number,
+  explanation: string,
+  difficulty: "easy" | "medium" | "hard"
+): CheckpointQuestionBase => ({
+  type: "fix" as const,
+  prompt,
+  choices,
+  answer: { correctIndex },
+  explanation,
+  difficulty,
+});
+
+const buildCheckpointQuestionBank = (
+  weekIndex: number,
+  scenario: Scenario
+): CheckpointQuestionBase[] => {
+  switch (weekIndex) {
+    case 0:
+      return [
+        checkpointMcq(
+          `Which question helps improve ${scenario.product}?`,
+          [
+            `Which step slows ${scenario.metric}?`,
+            "Is the product popular?",
+            `How many ${scenario.vanityMetric} happened?`,
+            "What does the CEO think?",
+          ],
+          0,
+          "Pick a question that points to one step you can change.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the update: \"Installs went up, so we are winning.\"",
+          [
+            `Check if ${scenario.metric} moved too before claiming success.`,
+            "Only share installs.",
+            "Hide the report.",
+            "Change the colors.",
+          ],
+          0,
+          "Confirm the outcome number, not only attention metrics.",
+          "easy"
+        ),
+        checkpointMcq(
+          `You saw ${scenario.metric} rise after a change. What is safest?`,
+          [
+            "The change caused the lift.",
+            "The lift happened, but we need more proof before claiming cause.",
+            "The lift is fake.",
+            "We should stop tracking it.",
+          ],
+          1,
+          "Correlation alone is not proof of cause.",
+          "medium"
+        ),
+        checkpointMcq(
+          "Which baseline is most fair?",
+          ["Last week or last month.", "Only the best day.", "A random day.", "No baseline."],
+          0,
+          "Compare to a normal period.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the chart: the axis starts at 90 for a small change.",
+          [
+            "Start at zero or call out the tight scale clearly.",
+            "Remove the axis.",
+            "Hide the labels.",
+            "Use 3D bars.",
+          ],
+          0,
+          "Avoid exaggerating movement.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A good manager update includes:",
+          [
+            "The change, the driver, and one next step.",
+            "Only raw rows.",
+            "Every chart you made.",
+            "No action at all.",
+          ],
+          0,
+          "Keep it action ready.",
+          "hard"
+        ),
+      ];
+    case 1:
+      return [
+        checkpointMcq(
+          `In ${scenario.file}, what should you check first?`,
+          [
+            "Blanks, duplicates, and inconsistent labels.",
+            "Chart colors.",
+            "Font sizes.",
+            "Column width.",
+          ],
+          0,
+          "Clean structure comes first.",
+          "easy"
+        ),
+        checkpointFix(
+          `${scenario.column} has extra spaces and mixed case. Fix it by:`,
+          [
+            "Trim spaces and standardize case.",
+            "Sorting only.",
+            "Deleting the column.",
+            "Hiding the rows.",
+          ],
+          0,
+          "Normalize text so counts match.",
+          "easy"
+        ),
+        checkpointMcq(
+          `Which function sums ${scenario.metric} only when Status = "Paid"?`,
+          ["SUMIF", "COUNTIF", "IF", "AVERAGE"],
+          0,
+          "SUMIF adds values that meet a rule.",
+          "medium"
+        ),
+        checkpointFix(
+          `${scenario.dateColumn} is text and sorts wrong. Fix by:`,
+          [
+            "Convert it to a real date type.",
+            "Add a chart.",
+            "Bold the column.",
+            "Copy and paste values only.",
+          ],
+          0,
+          "Date type controls sorting.",
+          "medium"
+        ),
+        checkpointMcq(
+          "Why remove duplicates carefully?",
+          [
+            "So you do not delete real, unique records.",
+            "So the file looks shorter.",
+            "So charts auto-update.",
+            "So filters stop working.",
+          ],
+          0,
+          "Protect real rows while removing exact duplicates.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A safe cleanup flow ends with:",
+          ["Saving a clean copy.", "Deleting the original file.", "Only sorting.", "Renaming columns randomly."],
+          0,
+          "Keep a clean version you can reuse.",
+          "hard"
+        ),
+      ];
+    case 2:
+      return [
+        checkpointMcq(
+          `To summarize ${scenario.metric} by ${scenario.dimension}, use:`,
+          ["Pivot table", "Merge cells", "Freeze panes", "Spell check"],
+          0,
+          "Pivots group and summarize fast.",
+          "easy"
+        ),
+        checkpointFix(
+          "Your pivot shows Count, but you need Sum. Fix by:",
+          [
+            "Change the value field to Sum.",
+            "Sort descending.",
+            "Hide blanks.",
+            "Add a filter only.",
+          ],
+          0,
+          "Adjust the value field summary.",
+          "easy"
+        ),
+        checkpointMcq(
+          "Sorting helps you:",
+          ["Find top drivers quickly.", "Create duplicates.", "Remove labels.", "Hide trends."],
+          0,
+          "Sort to surface the biggest contributors.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A pivot chart should:",
+          ["Focus on one message.", "Show every tab at once.", "Use random colors.", "Hide labels."],
+          0,
+          "Keep the message clear.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the mistake: You filtered out needed categories.",
+          [
+            "Reset filters and verify all groups are included.",
+            "Delete the pivot.",
+            "Switch to a different sheet.",
+            "Remove totals.",
+          ],
+          0,
+          "Check filters before sharing.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A simple dashboard should include:",
+          ["A few KPIs and a clear trend.", "Every chart possible.", "Only raw rows.", "No titles."],
+          0,
+          "Keep it tight and readable.",
+          "hard"
+        ),
+      ];
+    case 3:
+      return [
+        checkpointMcq(
+          `The first step in the ${scenario.project} project is:`,
+          ["Define the decision and success number.", "Build charts first.", "Hide the data.", "Skip cleaning."],
+          0,
+          "Start with the goal.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the mistake: You calculated metrics before cleaning.",
+          [
+            "Clean obvious errors first, then calculate.",
+            "Add more formulas.",
+            "Ignore the errors.",
+            "Share the report now.",
+          ],
+          0,
+          "Clean data before calculations.",
+          "easy"
+        ),
+        checkpointMcq(
+          `Which summary best supports ${scenario.metric}?`,
+          ["A pivot with totals by segment.", "Raw rows only.", "Hidden columns.", "A blank sheet."],
+          0,
+          "Summaries show the key totals.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A trend is useful when it:",
+          ["Shows change over time.", "Hides changes.", "Removes labels.", "Ignores dates."],
+          0,
+          "Trends show direction.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the draft dashboard: It has no labels.",
+          ["Add clear titles and axis labels.", "Add more colors only.", "Remove all charts.", "Use tiny fonts."],
+          0,
+          "Labels make charts readable.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A good final slide includes:",
+          ["The key insight and recommended action.", "Every calculation.", "Only screenshots.", "No conclusion."],
+          0,
+          "End with action.",
+          "hard"
+        ),
+      ];
+    case 4:
+      return [
+        checkpointMcq(
+          `To pull ${scenario.metric} from ${scenario.table}, start with:`,
+          ["SELECT", "UPDATE", "DROP", "INSERT"],
+          0,
+          "SELECT reads data.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the query: You filtered after aggregating.",
+          ["Use WHERE before GROUP BY.", "Use LIMIT only.", "Remove WHERE.", "Sort first."],
+          0,
+          "WHERE filters rows before grouping.",
+          "easy"
+        ),
+        checkpointMcq(
+          "Which clause filters rows?",
+          ["WHERE", "GROUP BY", "ORDER BY", "JOIN"],
+          0,
+          "WHERE filters rows.",
+          "medium"
+        ),
+        checkpointMcq(
+          "To match multiple values, use:",
+          ["IN", "LIKE", "JOIN", "LIMIT"],
+          0,
+          "IN is for lists.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the mistake: Results are unsorted.",
+          ["Add ORDER BY for the main column.", "Add JOIN.", "Delete WHERE.", "Use DISTINCT only."],
+          0,
+          "ORDER BY sorts results.",
+          "medium"
+        ),
+        checkpointMcq(
+          "NULL values should be handled by:",
+          ["Checking for NULL explicitly.", "Ignoring them always.", "Removing the table.", "Sorting first."],
+          0,
+          "Check NULLs to avoid surprises.",
+          "hard"
+        ),
+      ];
+    case 5:
+      return [
+        checkpointMcq(
+          "GROUP BY is used to:",
+          ["Summarize by category.", "Sort alphabetically.", "Delete rows.", "Rename columns."],
+          0,
+          "GROUP BY creates summaries.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the mistake: You used WHERE on an aggregate.",
+          ["Use HAVING for aggregate filters.", "Remove GROUP BY.", "Add LIMIT.", "Sort by id."],
+          0,
+          "HAVING filters aggregated results.",
+          "easy"
+        ),
+        checkpointMcq(
+          "A join should connect tables on:",
+          ["Matching keys.", "Random columns.", "Row number only.", "Text length."],
+          0,
+          "Join on shared keys.",
+          "medium"
+        ),
+        checkpointMcq(
+          "After a join, you should:",
+          ["Check for duplicates.", "Assume counts are fine.", "Delete a column.", "Skip validation."],
+          0,
+          "Joins can duplicate rows.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the mistake: Aggregates are inflated after join.",
+          ["Aggregate after the join with correct keys.", "Add more joins.", "Use SELECT *.", "Delete filters."],
+          0,
+          "Aggregate carefully after joining.",
+          "medium"
+        ),
+        checkpointMcq(
+          "To filter on totals, use:",
+          ["HAVING", "WHERE", "ORDER BY", "LIMIT"],
+          0,
+          "HAVING filters aggregate results.",
+          "hard"
+        ),
+      ];
+    case 6:
+      return [
+        checkpointMcq(
+          "A chart choice should match:",
+          ["The question you are answering.", "Your favorite colors.", "Font size.", "Data source only."],
+          0,
+          "Pick charts for the question.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the dashboard: It has too many KPIs.",
+          ["Keep only the KPIs tied to the goal.", "Add more cards.", "Hide labels.", "Use random colors."],
+          0,
+          "Focus on the KPIs that matter.",
+          "easy"
+        ),
+        checkpointMcq(
+          "Filters help because they:",
+          ["Let people see segments quickly.", "Hide the trend.", "Remove data.", "Change the source."],
+          0,
+          "Filters speed up exploration.",
+          "medium"
+        ),
+        checkpointMcq(
+          "Visual hierarchy means:",
+          ["The most important info is easiest to see.", "Everything looks the same.", "All text is small.", "No titles."],
+          0,
+          "Guide attention to key info.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the mistake: The dashboard is cluttered.",
+          ["Remove non-essential visuals.", "Add more charts.", "Shrink all text.", "Hide the axes."],
+          0,
+          "Remove clutter to focus.",
+          "medium"
+        ),
+        checkpointMcq(
+          "Before sharing, you should:",
+          ["Confirm filters and totals.", "Turn off legends.", "Delete the data model.", "Hide titles."],
+          0,
+          "Validate before sharing.",
+          "hard"
+        ),
+      ];
+    case 7:
+      return [
+        checkpointMcq(
+          "A dashboard project starts with:",
+          ["A single goal question.", "Colors and fonts.", "Chart types only.", "No data prep."],
+          0,
+          "Start with the goal.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the model: Relationships are missing.",
+          ["Define relationships before building visuals.", "Add more charts.", "Hide tables.", "Use only CSVs."],
+          0,
+          "Relationships keep metrics correct.",
+          "easy"
+        ),
+        checkpointMcq(
+          "KPI cards should show:",
+          ["Key numbers tied to the goal.", "Every table name.", "Random stats.", "No context."],
+          0,
+          "Keep KPI cards focused.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A trend view should:",
+          ["Show change over time clearly.", "Hide dates.", "Use only pie charts.", "Remove labels."],
+          0,
+          "Trends need time on the axis.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the mistake: Filters are missing.",
+          ["Add filters for main segments.", "Delete all slicers.", "Hide legends.", "Use only one color."],
+          0,
+          "Filters make dashboards useful.",
+          "medium"
+        ),
+        checkpointMcq(
+          "Final review checks:",
+          ["Totals, filters, and titles.", "Only colors.", "Only fonts.", "Nothing at all."],
+          0,
+          "Check the basics before sharing.",
+          "hard"
+        ),
+      ];
+    case 8:
+      return [
+        checkpointMcq(
+          `To load ${scenario.file}, use:`,
+          ["read_csv", "groupby", "merge", "plot"],
+          0,
+          "read_csv loads files.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the mistake: Column names have spaces.",
+          ["Standardize names (lowercase, underscores).", "Add more columns.", "Hide headers.", "Drop all columns."],
+          0,
+          "Clean names before analysis.",
+          "easy"
+        ),
+        checkpointMcq(
+          "To inspect column types, use:",
+          ["info()", "sum()", "merge()", "plot()"],
+          0,
+          "info() shows types and nulls.",
+          "medium"
+        ),
+        checkpointMcq(
+          "Missing values should be handled by:",
+          ["Filling or removing based on the goal.", "Ignoring always.", "Deleting the file.", "Sorting only."],
+          0,
+          "Handle missing values on purpose.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the mistake: You filtered after exporting.",
+          ["Filter before exporting clean data.", "Export raw data only.", "Delete the filter.", "Rename the file."],
+          0,
+          "Filter before export.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A new column can be created by:",
+          ["Combining or calculating from existing columns.", "Changing colors.", "Renaming the file.", "Sorting."],
+          0,
+          "Create derived columns with simple rules.",
+          "hard"
+        ),
+      ];
+    case 9:
+      return [
+        checkpointMcq(
+          "groupby is used to:",
+          ["Summarize by category.", "Sort columns.", "Drop rows.", "Change data types."],
+          0,
+          "groupby summarizes by group.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the mistake: You plotted before sorting by date.",
+          ["Sort by date, then plot.", "Remove the date.", "Shuffle rows.", "Use only bar charts."],
+          0,
+          "Sort time series first.",
+          "easy"
+        ),
+        checkpointMcq(
+          "Segmentation helps you:",
+          ["Compare groups clearly.", "Hide differences.", "Skip labels.", "Remove columns."],
+          0,
+          "Segments show differences.",
+          "medium"
+        ),
+        checkpointMcq(
+          "Top and bottom views help you:",
+          ["Find best and worst performers.", "Remove all data.", "Ignore trends.", "Hide outliers."],
+          0,
+          "Rank to see extremes.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the mistake: You merged without checking keys.",
+          ["Validate keys before merging.", "Merge on row number.", "Ignore duplicates.", "Drop both tables."],
+          0,
+          "Check keys first.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A good summary line includes:",
+          ["Metric, change, and action.", "Only tools used.", "Every row count.", "No context."],
+          0,
+          "Keep it action-ready.",
+          "hard"
+        ),
+      ];
+    case 10:
+      return [
+        checkpointMcq(
+          "A cohort groups users by:",
+          ["The same start event.", "Random picks.", "Only top spenders.", "One location only."],
+          0,
+          "Cohorts share a start.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the mistake: You compared cohorts from different start months.",
+          ["Compare cohorts with the same timeline.", "Mix all cohorts.", "Drop the date.", "Hide the chart."],
+          0,
+          "Align cohorts by time since start.",
+          "easy"
+        ),
+        checkpointMcq(
+          "Retention means:",
+          ["How many users return over time.", "Total downloads.", "Number of charts.", "Emails sent."],
+          0,
+          "Retention tracks repeat usage.",
+          "medium"
+        ),
+        checkpointMcq(
+          "In an A/B test, you should:",
+          ["Keep the groups consistent.", "Change rules mid-test.", "Stop tracking guardrails.", "Pick a winner on day one."],
+          0,
+          "Consistency keeps tests fair.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the mistake: You ignored a guardrail metric.",
+          ["Check guardrails before deciding.", "Ignore it if the main metric is up.", "Delete the guardrail.", "Stop the test."],
+          0,
+          "Guardrails prevent harm.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A final recommendation should:",
+          ["State the next step clearly.", "List every tool.", "Hide results.", "Skip the action."],
+          0,
+          "Recommendations need an action.",
+          "hard"
+        ),
+      ];
+    case 11:
+      return [
+        checkpointMcq(
+          "A good case kickoff question is:",
+          ["What decision will this support?", "What colors do you prefer?", "Can we skip cleaning?", "What is the font size?"],
+          0,
+          "Start with the decision.",
+          "easy"
+        ),
+        checkpointFix(
+          "Fix the mistake: You jumped to charts without cleaning.",
+          ["Check data quality first.", "Add more visuals.", "Hide the table.", "Ignore missing values."],
+          0,
+          "Clean before charting.",
+          "easy"
+        ),
+        checkpointMcq(
+          "When explaining a chart, lead with:",
+          ["The key change and why it matters.", "Every axis detail.", "Your tool choice.", "The colors used."],
+          0,
+          "Lead with insight.",
+          "medium"
+        ),
+        checkpointMcq(
+          "An executive summary should be:",
+          ["Short, clear, and actionable.", "Long and technical.", "Only charts.", "Only raw data."],
+          0,
+          "Keep it short and clear.",
+          "medium"
+        ),
+        checkpointFix(
+          "Fix the interview answer: It is tool-only.",
+          ["Add context, insight, and action.", "List more tools.", "Shorten to one word.", "Remove the outcome."],
+          0,
+          "Stories beat tool lists.",
+          "medium"
+        ),
+        checkpointMcq(
+          "A strong closing line is:",
+          ["I found the change, explained impact, and recommended a next step.", "I used many tools.", "The data was big.", "I made charts."],
+          0,
+          "End with impact and action.",
+          "hard"
+        ),
+      ];
+    default:
+      return [
+        checkpointMcq(
+          "What is the best next step?",
+          ["Take one clear action.", "Wait and hope.", "Ignore the change.", "Share no update."],
+          0,
+          "Lead with an action.",
+          "easy"
+        ),
+      ];
+  }
+};
+
+const buildCheckpointQuestionsForDay = (
+  weekIndex: number,
+  scenario: Scenario,
+  testId: string
+): CheckpointQuestionSeed[] => {
+  const questions = buildCheckpointQuestionBank(weekIndex, scenario).slice(0, 8);
+  return questions.map((question, index) => ({
+    id: `${testId}-q${index + 1}`,
+    checkpointTestId: testId,
+    ...question,
+  }));
+};
+
+const buildCheckpointTestForDay = (
+  dayNumber: number,
+  weekIndex: number,
+  scenario: Scenario,
+  title: string
+): CheckpointTestSeed => {
+  const id = `checkpoint-day-${dayNumber}`;
+  return {
+    id,
+    dayNumber,
+    title: `Checkpoint Day ${dayNumber}: ${title}`,
+    passPercent: 70,
+    xpReward: 15,
+    questions: buildCheckpointQuestionsForDay(weekIndex, scenario, id),
+  };
+};
+
+const buildProgramContent = (): ProgramContent => {
+  const lessons = buildLessons();
+  const skillChecks: SkillCheckSeed[] = [];
+  const patterns: PatternSeed[] = [];
+  const checkpointTests: CheckpointTestSeed[] = [];
+
+  let dayCounter = 1;
+  weekPlans.forEach((week, weekIndex) => {
+    week.dayTitles.forEach((title, dayIndex) => {
+      const scenario = week.scenarios[dayIndex % week.scenarios.length];
+      skillChecks.push(...buildSkillChecksForDay(dayCounter, weekIndex, scenario));
+      patterns.push(...buildPatternsForDay(dayCounter, weekIndex, scenario, title));
+      checkpointTests.push(buildCheckpointTestForDay(dayCounter, weekIndex, scenario, title));
+      dayCounter += 1;
+    });
+  });
+
+  return { lessons, skillChecks, patterns, checkpointTests };
+};
+
+type ContentIssue = { day: number; issues: string[] };
+
+const bannedPhrases = ["analyze the data", "use insights", "optimize metrics"];
+
+export const lintProgramContent = (content: ProgramContent): ContentIssue[] => {
+  const issues: ContentIssue[] = [];
+  content.lessons.forEach((lesson) => {
+    const lessonIssues: string[] = [];
+    const hasTableVisual = lesson.steps.some(
+      (step) => step.type === "visual" && step.visual?.type === "table"
+    );
+    if (!hasTableVisual) {
+      lessonIssues.push("Missing table visual step.");
+    }
+    if (!lesson.realWorldLine.includes("What you'd tell your manager:")) {
+      lessonIssues.push("Missing manager-style sentence.");
+    }
+    lesson.steps.forEach((step) => {
+      if (step.type !== "intuition" && step.type !== "learn") {
+        return;
+      }
+      const haystack = `${step.title ?? ""} ${step.body ?? ""}`.toLowerCase();
+      if (bannedPhrases.some((phrase) => haystack.includes(phrase))) {
+        const hasExample = Boolean(step.example && step.example.trim());
+        if (!hasExample) {
+          lessonIssues.push(`Vague phrase without example in "${step.title ?? "step"}".`);
+        }
+      }
+    });
+    if (lessonIssues.length) {
+      issues.push({ day: lesson.day, issues: lessonIssues });
+    }
+  });
+  return issues;
+};
+
+export const runContentChecks = (): ContentIssue[] => {
+  const content = buildProgramContent();
+  return lintProgramContent(content);
+};
+
+export const ensureContentSeeded = async () => {
   if (seeded) {
     return;
   }
 
   const db = await getDb();
-  const countResult = await db`SELECT COUNT(*)::int AS count FROM lesson_steps`;
-  const count = Number(countResult.rows[0]?.count ?? 0);
-  if (count > 0) {
-    seeded = true;
-    return;
+  const content = buildProgramContent();
+  const issues = lintProgramContent(content);
+  if (issues.length) {
+    const summary = issues
+      .map((issue) => `Day ${issue.day}: ${issue.issues.join(" ")}`)
+      .join(" | ");
+    throw new Error(`Content check failed. ${summary}`);
   }
 
-  const lessons = buildLessons();
-  for (const lesson of lessons) {
+  for (const lesson of content.lessons) {
+    const recapJson = JSON.stringify(lesson.recapBullets);
     await db`
-      INSERT INTO lessons (day, title, micro_goal)
-      VALUES (${lesson.day}, ${lesson.title}, ${lesson.microGoal})
+      INSERT INTO lessons (day, title, micro_goal, recap_bullets, real_world_line)
+      VALUES (
+        ${lesson.day},
+        ${lesson.title},
+        ${lesson.microGoal},
+        ${recapJson}::jsonb,
+        ${lesson.realWorldLine}
+      )
       ON CONFLICT (day) DO UPDATE
       SET title = EXCLUDED.title,
-          micro_goal = EXCLUDED.micro_goal
+          micro_goal = EXCLUDED.micro_goal,
+          recap_bullets = EXCLUDED.recap_bullets,
+          real_world_line = EXCLUDED.real_world_line
     `;
 
     for (const [index, step] of lesson.steps.entries()) {
       const choicesJson = step.choices ? JSON.stringify(step.choices) : null;
+      const visualJson = step.visual ? JSON.stringify(step.visual) : null;
       await db`
         INSERT INTO lesson_steps (
           lesson_day,
@@ -1774,7 +3204,8 @@ const ensureSeeded = async () => {
           prompt,
           choices,
           correct_index,
-          explanation
+          explanation,
+          visual_json
         )
         VALUES (
           ${lesson.day},
@@ -1786,8 +3217,123 @@ const ensureSeeded = async () => {
           ${step.prompt ?? null},
           ${choicesJson}::jsonb,
           ${step.correctIndex ?? null},
-          ${step.explanation ?? null}
+          ${step.explanation ?? null},
+          ${visualJson}::jsonb
         )
+        ON CONFLICT (lesson_day, sort_order) DO UPDATE
+        SET type = EXCLUDED.type,
+            title = EXCLUDED.title,
+            body = EXCLUDED.body,
+            example = EXCLUDED.example,
+            prompt = EXCLUDED.prompt,
+            choices = EXCLUDED.choices,
+            correct_index = EXCLUDED.correct_index,
+            explanation = EXCLUDED.explanation,
+            visual_json = EXCLUDED.visual_json
+      `;
+    }
+  }
+
+  for (const check of content.skillChecks) {
+    const choicesJson = JSON.stringify(check.choices);
+    const answerJson = JSON.stringify(check.answer);
+    await db`
+      INSERT INTO skill_checks (
+        id,
+        day_number,
+        title,
+        prompt,
+        type,
+        choices_json,
+        answer_json,
+        explanation,
+        xp_reward
+      )
+      VALUES (
+        ${check.id},
+        ${check.dayNumber},
+        ${check.title},
+        ${check.prompt},
+        ${check.type},
+        ${choicesJson}::jsonb,
+        ${answerJson}::jsonb,
+        ${check.explanation},
+        ${check.xpReward}
+      )
+      ON CONFLICT (id) DO UPDATE
+      SET day_number = EXCLUDED.day_number,
+          title = EXCLUDED.title,
+          prompt = EXCLUDED.prompt,
+          type = EXCLUDED.type,
+          choices_json = EXCLUDED.choices_json,
+          answer_json = EXCLUDED.answer_json,
+          explanation = EXCLUDED.explanation,
+          xp_reward = EXCLUDED.xp_reward
+    `;
+  }
+
+  for (const pattern of content.patterns) {
+    const contentJson = JSON.stringify(pattern.content);
+    await db`
+      INSERT INTO patterns (id, day_number, title, description, content_json)
+      VALUES (
+        ${pattern.id},
+        ${pattern.dayNumber},
+        ${pattern.title},
+        ${pattern.description},
+        ${contentJson}::jsonb
+      )
+      ON CONFLICT (id) DO UPDATE
+      SET day_number = EXCLUDED.day_number,
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          content_json = EXCLUDED.content_json
+    `;
+  }
+
+  for (const test of content.checkpointTests) {
+    await db`
+      INSERT INTO checkpoint_tests (id, day_number, title, pass_percent, xp_reward)
+      VALUES (${test.id}, ${test.dayNumber}, ${test.title}, ${test.passPercent}, ${test.xpReward})
+      ON CONFLICT (id) DO UPDATE
+      SET day_number = EXCLUDED.day_number,
+          title = EXCLUDED.title,
+          pass_percent = EXCLUDED.pass_percent,
+          xp_reward = EXCLUDED.xp_reward
+    `;
+
+    for (const question of test.questions) {
+      const choicesJson = JSON.stringify(question.choices);
+      const answerJson = JSON.stringify(question.answer);
+      await db`
+        INSERT INTO checkpoint_questions (
+          id,
+          checkpoint_test_id,
+          type,
+          prompt,
+          choices_json,
+          answer_json,
+          explanation,
+          difficulty
+        )
+        VALUES (
+          ${question.id},
+          ${question.checkpointTestId},
+          ${question.type},
+          ${question.prompt},
+          ${choicesJson}::jsonb,
+          ${answerJson}::jsonb,
+          ${question.explanation},
+          ${question.difficulty}
+        )
+        ON CONFLICT (id) DO UPDATE
+        SET checkpoint_test_id = EXCLUDED.checkpoint_test_id,
+            type = EXCLUDED.type,
+            prompt = EXCLUDED.prompt,
+            choices_json = EXCLUDED.choices_json,
+            answer_json = EXCLUDED.answer_json,
+            explanation = EXCLUDED.explanation,
+            difficulty = EXCLUDED.difficulty
       `;
     }
   }
@@ -1796,10 +3342,10 @@ const ensureSeeded = async () => {
 };
 
 export const getLessonForDay = async (day: number): Promise<Lesson | null> => {
-  await ensureSeeded();
+  await ensureContentSeeded();
   const db = await getDb();
   const lessonResult = await db`
-    SELECT day, title, micro_goal
+    SELECT day, title, micro_goal, recap_bullets, real_world_line
     FROM lessons
     WHERE day = ${day}
     LIMIT 1
@@ -1810,7 +3356,7 @@ export const getLessonForDay = async (day: number): Promise<Lesson | null> => {
   }
 
   const stepResult = await db`
-    SELECT id, lesson_day, sort_order, type, title, body, example, prompt, choices, correct_index, explanation
+    SELECT id, lesson_day, sort_order, type, title, body, example, prompt, choices, correct_index, explanation, visual_json
     FROM lesson_steps
     WHERE lesson_day = ${day}
     ORDER BY sort_order ASC, id ASC
@@ -1823,6 +3369,8 @@ export const getLessonForDay = async (day: number): Promise<Lesson | null> => {
         ? "intuition"
         : stepRow.type === "learn"
         ? "learn"
+        : stepRow.type === "visual"
+        ? "visual"
         : stepRow.type === "fix"
         ? "fix"
         : "mcq";
@@ -1838,6 +3386,7 @@ export const getLessonForDay = async (day: number): Promise<Lesson | null> => {
       choices: toOptions(stepRow.choices),
       correctIndex: stepRow.correct_index,
       explanation: stepRow.explanation,
+      visual: parseVisual(stepRow.visual_json),
     } satisfies LessonStep;
   });
 
@@ -1845,12 +3394,14 @@ export const getLessonForDay = async (day: number): Promise<Lesson | null> => {
     day: Number(lessonRow.day),
     title: String(lessonRow.title),
     microGoal: String(lessonRow.micro_goal),
+    recapBullets: toStringArray(lessonRow.recap_bullets),
+    realWorldLine: String(lessonRow.real_world_line ?? ""),
     steps,
   };
 };
 
 export const getStepProgressForDay = async (userId: number, day: number) => {
-  await ensureSeeded();
+  await ensureContentSeeded();
   const db = await getDb();
   const result = await db`
     SELECT sp.step_id, sp.selected_index, sp.is_correct
@@ -1871,10 +3422,10 @@ export const getStepProgressForDay = async (userId: number, day: number) => {
 };
 
 export const getStepById = async (stepId: number) => {
-  await ensureSeeded();
+  await ensureContentSeeded();
   const db = await getDb();
   const result = await db`
-    SELECT id, lesson_day, sort_order, type, title, body, example, prompt, choices, correct_index, explanation
+    SELECT id, lesson_day, sort_order, type, title, body, example, prompt, choices, correct_index, explanation, visual_json
     FROM lesson_steps
     WHERE id = ${stepId}
     LIMIT 1
@@ -1888,6 +3439,8 @@ export const getStepById = async (stepId: number) => {
       ? "intuition"
       : row.type === "learn"
       ? "learn"
+      : row.type === "visual"
+      ? "visual"
       : row.type === "fix"
       ? "fix"
       : "mcq";
@@ -1903,12 +3456,16 @@ export const getStepById = async (stepId: number) => {
     choices: toOptions(row.choices),
     correctIndex: row.correct_index,
     explanation: row.explanation,
+    visual: parseVisual(row.visual_json),
   } satisfies LessonStep;
 };
 
 export const recordLearnStep = async (userId: number, stepId: number) => {
   const step = await getStepById(stepId);
-  if (!step || (step.type !== "learn" && step.type !== "intuition")) {
+  if (
+    !step ||
+    (step.type !== "learn" && step.type !== "intuition" && step.type !== "visual")
+  ) {
     return null;
   }
   const db = await getDb();
@@ -1922,7 +3479,7 @@ export const recordLearnStep = async (userId: number, stepId: number) => {
 
 export const recordAnswer = async (userId: number, stepId: number, selectedIndex: number) => {
   const step = await getStepById(stepId);
-  if (!step || step.type === "learn" || step.type === "intuition") {
+  if (!step || step.type === "learn" || step.type === "intuition" || step.type === "visual") {
     return null;
   }
   const correctIndex = step.correctIndex ?? -1;
@@ -1935,4 +3492,6 @@ export const recordAnswer = async (userId: number, stepId: number, selectedIndex
   `;
   return { step, isCorrect };
 };
+
+
 
