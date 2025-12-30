@@ -42,17 +42,17 @@ export default async function CheckpointPage({ params, searchParams }: Checkpoin
 
   const dashboard = await getDashboardData(user.id);
   if (day > dashboard.dayNumber) {
-    redirect("/dashboard");
+    redirect("/dashboard?error=Checkpoint%20locked%20until%20you%20reach%20this%20day.");
   }
 
   const completedDays = await getCompletedDays(user.id);
   if (!completedDays.includes(day)) {
-    redirect("/dashboard?error=Finish%20the%20lesson%20first.");
+    redirect("/dashboard?view=lesson&error=Finish%20the%20lesson%20first.");
   }
 
   const test = await getCheckpointTestForDay(day);
   if (!test) {
-    redirect("/dashboard");
+    redirect("/dashboard?error=Checkpoint%20missing%20for%20this%20day.");
   }
 
   const progress = await getCheckpointProgress(user.id, test.id);

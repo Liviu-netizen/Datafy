@@ -28,12 +28,12 @@ export default async function PatternPage({ params, searchParams }: PatternPageP
 
   const pattern = await getPatternById(params.id);
   if (!pattern) {
-    redirect("/dashboard");
+    redirect("/dashboard?error=Pattern%20missing%20for%20today.");
   }
 
   const dashboard = await getDashboardData(user.id);
   if (pattern.dayNumber > dashboard.dayNumber) {
-    redirect("/dashboard");
+    redirect("/dashboard?error=Pattern%20locked%20for%20a%20future%20day.");
   }
 
   const completed =

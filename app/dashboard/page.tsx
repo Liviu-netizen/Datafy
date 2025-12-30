@@ -361,6 +361,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   return (
     <div className="mimo-shell dashboard-shell">
       <div className="dashboard-wrap">
+        {errorParam ? <div className="mimo-alert">{errorParam}</div> : null}
         <header className="dashboard-header">
           <div className="dashboard-title">
             <div>

@@ -27,12 +27,12 @@ export default async function SkillCheckPage({ params, searchParams }: SkillChec
 
   const skillCheck = await getSkillCheckById(params.id);
   if (!skillCheck) {
-    redirect("/dashboard");
+    redirect("/dashboard?error=Skill%20check%20missing%20for%20today.");
   }
 
   const dashboard = await getDashboardData(user.id);
   if (skillCheck.dayNumber > dashboard.dayNumber) {
-    redirect("/dashboard");
+    redirect("/dashboard?error=Skill%20check%20locked%20for%20a%20future%20day.");
   }
 
   const completed =
