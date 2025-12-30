@@ -15,8 +15,10 @@ const ensureSchema = async () => {
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+    )
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS user_progress (
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       start_date DATE NOT NULL,
@@ -24,21 +26,27 @@ const ensureSchema = async () => {
       streak INTEGER NOT NULL DEFAULT 0,
       last_completed_date DATE,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+    )
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS user_days (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       day INTEGER NOT NULL,
       completed_date DATE NOT NULL,
       PRIMARY KEY (user_id, day)
-    );
+    )
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS lessons (
       day INTEGER PRIMARY KEY,
       title TEXT NOT NULL,
       micro_goal TEXT NOT NULL
-    );
+    )
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS questions (
       id SERIAL PRIMARY KEY,
       lesson_day INTEGER NOT NULL REFERENCES lessons(day) ON DELETE CASCADE,
@@ -49,8 +57,10 @@ const ensureSchema = async () => {
       correct_index INTEGER NOT NULL,
       feedback_correct TEXT NOT NULL,
       feedback_incorrect TEXT NOT NULL
-    );
+    )
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS user_answers (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -59,21 +69,23 @@ const ensureSchema = async () => {
       is_correct BOOLEAN NOT NULL,
       answered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (user_id, question_id)
-    );
+    )
+  `;
 
+  await sql`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       expires_at TIMESTAMPTZ NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id);
-    CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at);
-    CREATE INDEX IF NOT EXISTS user_days_user_id_idx ON user_days(user_id);
-    CREATE INDEX IF NOT EXISTS questions_lesson_day_idx ON questions(lesson_day);
-    CREATE INDEX IF NOT EXISTS user_answers_user_id_idx ON user_answers(user_id);
+    )
   `;
+
+  await sql`CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at)`;
+  await sql`CREATE INDEX IF NOT EXISTS user_days_user_id_idx ON user_days(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS questions_lesson_day_idx ON questions(lesson_day)`;
+  await sql`CREATE INDEX IF NOT EXISTS user_answers_user_id_idx ON user_answers(user_id)`;
 
   schemaReady = true;
 };
