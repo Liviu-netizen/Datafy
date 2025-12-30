@@ -101,6 +101,12 @@ type LessonStepSeed = {
 
 type Scenario = Record<string, string>;
 
+type WeekScaffold = {
+  intuition: LessonStepSeed;
+  learn: LessonStepSeed[];
+  recap?: LessonStepSeed;
+};
+
 let seeded = false;
 
 const weekPlans = [
@@ -1230,7 +1236,7 @@ const buildQuestionSteps = (questions: QuestionSeed[]): LessonStepSeed[] =>
     explanation: toExplanation(question.feedbackCorrect || question.feedbackIncorrect),
   }));
 
-const week1Scaffolds = [
+const week1Scaffolds: Array<(scenario: Scenario) => WeekScaffold> = [
   (scenario: Scenario) => ({
     intuition: {
       type: "intuition",
@@ -1391,7 +1397,7 @@ const week1Scaffolds = [
   }),
 ];
 
-const week2Scaffolds = [
+const week2Scaffolds: Array<(scenario: Scenario) => WeekScaffold> = [
   (scenario: Scenario) => ({
     intuition: {
       type: "intuition",
