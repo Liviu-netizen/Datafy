@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { getDb } from "./db";
 
@@ -8,10 +8,10 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 type ProgressRow = {
   user_id: number;
-  start_date: string | Date;
+  start_date: string;
   xp: number;
   streak: number;
-  last_completed_date?: string | Date | null;
+  last_completed_date?: string | null;
 };
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
@@ -42,6 +42,9 @@ const normalizeDateValue = (value?: string | Date | null) => {
   return trimmed;
 };
 
+const normalizeDateValueString = (value?: string | Date | null) =>
+  normalizeDateValue(value) ?? todayString();
+
 const parseDateString = (value: string) => {
   const normalized = normalizeDateValue(value) ?? todayString();
   const [year, month, day] = normalized.split("-").map(Number);
@@ -69,7 +72,7 @@ const ensureProgressRow = async (userId: number) => {
 
   if (existing.rows[0]) {
     const row = existing.rows[0] as ProgressRow;
-    const startDate = normalizeDateValue(row.start_date) ?? todayString();
+    const startDate = normalizeDateValueString(row.start_date);
     const lastCompleted = normalizeDateValue(row.last_completed_date);
     return {
       user_id: Number(row.user_id),
@@ -94,7 +97,7 @@ const ensureProgressRow = async (userId: number) => {
     LIMIT 1
   `;
   const row = inserted.rows[0] as ProgressRow;
-  const insertedStartDate = normalizeDateValue(row.start_date) ?? todayString();
+  const insertedStartDate = normalizeDateValueString(row.start_date);
   const lastCompleted = normalizeDateValue(row.last_completed_date);
   return {
     user_id: Number(row.user_id),
@@ -131,7 +134,7 @@ const resetStreakIfMissed = async (progress: ProgressRow, today: string) => {
   }
 
   const yesterday = getYesterdayString(today);
-  const lastDate = progress.last_completed_date;
+  const lastDate = normalizeDateValueString(progress.last_completed_date);
   const isStreakValid = lastDate === today || lastDate === yesterday;
 
   if (!isStreakValid && progress.streak !== 0) {
@@ -182,7 +185,7 @@ export const completeToday = async (userId: number) => {
   }
 
   const yesterday = getYesterdayString(today);
-  const lastDate = progress.last_completed_date ?? null;
+  const lastDate = normalizeDateValueString(progress.last_completed_date);
   const streak = lastDate === yesterday ? progress.streak + 1 : 1;
   const xp = progress.xp + XP_PER_DAY;
 
@@ -202,3 +205,5 @@ export const completeToday = async (userId: number) => {
 
   return { status: "completed" as const };
 };
+
+
