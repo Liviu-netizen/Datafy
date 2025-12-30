@@ -61,10 +61,11 @@ export const verifyUser = async (email: string, password: string) => {
 export const createSession = async (userId: number) => {
   const id = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAtIso = expiresAt.toISOString();
   const db = await getDb();
   await db`
     INSERT INTO sessions (id, user_id, expires_at)
-    VALUES (${id}, ${userId}, ${expiresAt})
+    VALUES (${id}, ${userId}, ${expiresAtIso})
   `;
   return { id, expiresAt: expiresAt.getTime() };
 };
