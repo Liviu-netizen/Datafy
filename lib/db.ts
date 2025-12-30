@@ -109,6 +109,12 @@ const ensureSchema = async () => {
     )
   `;
   await sql`
+    CREATE TABLE IF NOT EXISTS content_seed (
+      version INTEGER PRIMARY KEY,
+      seeded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
     CREATE TABLE IF NOT EXISTS user_skill_checks (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       skill_check_id TEXT NOT NULL,

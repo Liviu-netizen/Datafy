@@ -6,6 +6,8 @@ import { getSkillCheckById, getSkillCheckCompletion } from "@/lib/skill-checks";
 import { getDashboardData } from "@/lib/progress";
 import { submitSkillCheck } from "./actions";
 
+export const runtime = "nodejs";
+
 type SkillCheckPageProps = {
   params: { id: string };
   searchParams?: { [key: string]: string | string[] | undefined };

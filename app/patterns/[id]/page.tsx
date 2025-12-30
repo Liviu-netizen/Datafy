@@ -7,6 +7,8 @@ import { getDashboardData } from "@/lib/progress";
 import { VisualCard } from "@/app/components/visual";
 import { markFinished } from "./actions";
 
+export const runtime = "nodejs";
+
 type PatternPageProps = {
   params: { id: string };
   searchParams?: { [key: string]: string | string[] | undefined };

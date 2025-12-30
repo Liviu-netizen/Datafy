@@ -115,6 +115,7 @@ type WeekScaffold = {
   recap?: LessonStepSeed;
 };
 
+const CONTENT_SEED_VERSION = 1;
 let seeded = false;
 
 const weekPlans = [
@@ -3163,7 +3164,60 @@ export const ensureContentSeeded = async () => {
   }
 
   const db = await getDb();
+  const seedResult = await db`
+    SELECT version
+    FROM content_seed
+    WHERE version = ${CONTENT_SEED_VERSION}
+    LIMIT 1
+  `;
+  if (seedResult.rows[0]) {
+    seeded = true;
+    return;
+  }
+
   const content = buildProgramContent();
+  const expectedLessonSteps = content.lessons.reduce(
+    (total, lesson) => total + lesson.steps.length,
+    0
+  );
+  const expectedCheckpointQuestions = content.checkpointTests.reduce(
+    (total, test) => total + test.questions.length,
+    0
+  );
+  const countsResult = await db`
+    SELECT
+      (SELECT COUNT(*) FROM lessons) AS lessons,
+      (SELECT COUNT(*) FROM lesson_steps) AS lesson_steps,
+      (SELECT COUNT(*) FROM skill_checks) AS skill_checks,
+      (SELECT COUNT(*) FROM patterns) AS patterns,
+      (SELECT COUNT(*) FROM checkpoint_tests) AS checkpoint_tests,
+      (SELECT COUNT(*) FROM checkpoint_questions) AS checkpoint_questions
+  `;
+  const countsRow = countsResult.rows[0] as {
+    lessons: string | number;
+    lesson_steps: string | number;
+    skill_checks: string | number;
+    patterns: string | number;
+    checkpoint_tests: string | number;
+    checkpoint_questions: string | number;
+  };
+  const hasAllContent =
+    Number(countsRow.lessons) >= content.lessons.length &&
+    Number(countsRow.lesson_steps) >= expectedLessonSteps &&
+    Number(countsRow.skill_checks) >= content.skillChecks.length &&
+    Number(countsRow.patterns) >= content.patterns.length &&
+    Number(countsRow.checkpoint_tests) >= content.checkpointTests.length &&
+    Number(countsRow.checkpoint_questions) >= expectedCheckpointQuestions;
+  if (hasAllContent) {
+    await db`
+      INSERT INTO content_seed (version)
+      VALUES (${CONTENT_SEED_VERSION})
+      ON CONFLICT (version) DO NOTHING
+    `;
+    seeded = true;
+    return;
+  }
+
   const issues = lintProgramContent(content);
   if (issues.length) {
     const summary = issues
@@ -3338,6 +3392,11 @@ export const ensureContentSeeded = async () => {
     }
   }
 
+  await db`
+    INSERT INTO content_seed (version)
+    VALUES (${CONTENT_SEED_VERSION})
+    ON CONFLICT (version) DO NOTHING
+  `;
   seeded = true;
 };
 

@@ -16,6 +16,8 @@ import {
   submitCheckpointAnswer,
 } from "./actions";
 
+export const runtime = "nodejs";
+
 type CheckpointPageProps = {
   params: { day: string };
   searchParams?: { [key: string]: string | string[] | undefined };
