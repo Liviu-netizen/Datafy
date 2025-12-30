@@ -247,6 +247,38 @@ button {
   gap: 12px;
 }
 
+.mimo-learn-card {
+  margin-top: 20px;
+  border-radius: 22px;
+  padding: 20px 18px;
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  display: grid;
+  gap: 12px;
+}
+
+.mimo-learn-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.mimo-learn-body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #e2e8f0;
+}
+
+.mimo-learn-example {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #cbd5f5;
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
 .mimo-question-tag {
   display: inline-flex;
   align-items: center;
@@ -284,6 +316,41 @@ button {
   transform: none;
   box-shadow: none;
   opacity: 0.85;
+}
+
+.mimo-choice-option {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.mimo-choice-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mimo-choice-option span {
+  display: block;
+  border-radius: 18px;
+  border: 1px solid #e1e6f0;
+  background: #ffffff;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--mimo-text);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mimo-choice-option input:checked + span {
+  border-color: rgba(24, 179, 156, 0.6);
+  box-shadow: 0 10px 20px rgba(24, 179, 156, 0.2);
+}
+
+.mimo-choice-option span:hover {
+  border-color: rgba(24, 179, 156, 0.4);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
 }
 
 .mimo-choice.correct {

@@ -47,6 +47,22 @@ const ensureSchema = async () => {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS lesson_steps (
+      id SERIAL PRIMARY KEY,
+      lesson_day INTEGER NOT NULL REFERENCES lessons(day) ON DELETE CASCADE,
+      sort_order INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT,
+      body TEXT,
+      example TEXT,
+      prompt TEXT,
+      choices JSONB,
+      correct_index INTEGER,
+      explanation TEXT
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS questions (
       id SERIAL PRIMARY KEY,
       lesson_day INTEGER NOT NULL REFERENCES lessons(day) ON DELETE CASCADE,
@@ -73,6 +89,18 @@ const ensureSchema = async () => {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS user_step_progress (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      step_id INTEGER NOT NULL REFERENCES lesson_steps(id) ON DELETE CASCADE,
+      selected_index INTEGER,
+      is_correct BOOLEAN,
+      completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, step_id)
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -86,6 +114,8 @@ const ensureSchema = async () => {
   await sql`CREATE INDEX IF NOT EXISTS user_days_user_id_idx ON user_days(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS questions_lesson_day_idx ON questions(lesson_day)`;
   await sql`CREATE INDEX IF NOT EXISTS user_answers_user_id_idx ON user_answers(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS lesson_steps_lesson_day_idx ON lesson_steps(lesson_day)`;
+  await sql`CREATE INDEX IF NOT EXISTS user_step_progress_user_id_idx ON user_step_progress(user_id)`;
 
   schemaReady = true;
 };

@@ -26,6 +26,26 @@ type AnswerRow = {
   is_correct: boolean;
 };
 
+type LessonStepRow = {
+  id: number;
+  lesson_day: number;
+  sort_order: number;
+  type: string;
+  title: string | null;
+  body: string | null;
+  example: string | null;
+  prompt: string | null;
+  choices: unknown;
+  correct_index: number | null;
+  explanation: string | null;
+};
+
+type StepProgressRow = {
+  step_id: number;
+  selected_index: number | null;
+  is_correct: boolean | null;
+};
+
 type Question = {
   id: number;
   lessonDay: number;
@@ -42,7 +62,7 @@ type Lesson = {
   day: number;
   title: string;
   microGoal: string;
-  questions: Question[];
+  steps: LessonStep[];
 };
 
 type QuestionSeed = {
@@ -52,7 +72,31 @@ type QuestionSeed = {
   correctIndex: number;
   feedbackCorrect: string;
   feedbackIncorrect: string;
+};
+
+type LessonStep = {
+  id: number;
+  lessonDay: number;
   sortOrder: number;
+  type: "learn" | "mcq" | "fix";
+  title?: string | null;
+  body?: string | null;
+  example?: string | null;
+  prompt?: string | null;
+  choices?: string[];
+  correctIndex?: number | null;
+  explanation?: string | null;
+};
+
+type LessonStepSeed = {
+  type: "learn" | "mcq" | "fix";
+  title?: string;
+  body?: string;
+  example?: string;
+  prompt?: string;
+  choices?: string[];
+  correctIndex?: number;
+  explanation?: string;
 };
 
 type Scenario = Record<string, string>;
@@ -473,6 +517,9 @@ const toOptions = (value: unknown) => {
   }
   return [];
 };
+
+const toExplanation = (value: string) =>
+  value.replace(/^Correct\.?\s*/i, "").replace(/^Not quite\.?\s*/i, "").trim();
 
 const managerQuestion = (scenario: Scenario, focus: string) => ({
   type: "multiple_choice" as const,
@@ -1154,27 +1201,98 @@ const buildQuestions = (weekIndex: number, scenario: Scenario) => {
   }
 };
 
+const buildQuestionSteps = (questions: QuestionSeed[]): LessonStepSeed[] =>
+  questions.map((question) => ({
+    type: question.type === "fix_the_mistake" ? "fix" : "mcq",
+    prompt: question.prompt,
+    choices: question.options,
+    correctIndex: question.correctIndex,
+    explanation: toExplanation(question.feedbackCorrect || question.feedbackIncorrect),
+  }));
+
+const buildDayOneSteps = (): LessonStepSeed[] => {
+  const scenario = weekPlans[0].scenarios[0];
+  const questions = buildWeek1Questions(scenario);
+  return [
+    {
+      type: "learn",
+      title: "Ask for a decision",
+      body:
+        "A good analysis starts with a decision you can act on. Replace vague questions with a specific step in the journey. Clear questions create clear work.",
+      example: "Example: Which signup step causes the biggest drop?",
+    },
+    {
+      type: "learn",
+      title: "Use a meaningful metric",
+      body:
+        "Vanity metrics can rise while outcomes fall. Choose a metric tied to value, like activation or conversion. If it moves, you know what to fix.",
+      example: "Example: Trial activation rate, not app installs.",
+    },
+    ...buildQuestionSteps(questions),
+    {
+      type: "learn",
+      title: "Recap",
+      body:
+        "Ask an actionable question, pick a metric tied to value, and keep the story honest. What would you tell your manager?",
+    },
+  ];
+};
+
+const buildDayTwoSteps = (): LessonStepSeed[] => {
+  const scenario = weekPlans[0].scenarios[1];
+  const questions = buildWeek1Questions(scenario);
+  return [
+    {
+      type: "learn",
+      title: "Action metrics vs vanity",
+      body:
+        "Action metrics change behavior. If the number drops, you know which step to improve. Vanity metrics only look good.",
+      example: "Example: Checkout conversion rate.",
+    },
+    {
+      type: "learn",
+      title: "Tie metrics to decisions",
+      body:
+        "A metric matters only if it changes a decision. Ask what the team would do differently if this number moved.",
+      example: "Example: Mobile conversion rate by traffic source.",
+    },
+    ...buildQuestionSteps(questions),
+    {
+      type: "learn",
+      title: "Recap",
+      body:
+        "Choose action metrics, connect them to decisions, and avoid vanity numbers. What would you tell your manager?",
+    },
+  ];
+};
+
 const buildLessons = () => {
   const lessons: {
     day: number;
     title: string;
     microGoal: string;
-    questions: QuestionSeed[];
+    steps: LessonStepSeed[];
   }[] = [];
 
   let dayCounter = 1;
   weekPlans.forEach((week, weekIndex) => {
     week.dayTitles.forEach((title, dayIndex) => {
       const scenario = week.scenarios[dayIndex % week.scenarios.length];
-      const questions = buildQuestions(weekIndex, scenario).map((question, index) => ({
-        ...question,
-        sortOrder: index + 1,
-      })) as QuestionSeed[];
+      let steps: LessonStepSeed[];
+
+      if (dayCounter === 1) {
+        steps = buildDayOneSteps();
+      } else if (dayCounter === 2) {
+        steps = buildDayTwoSteps();
+      } else {
+        steps = buildQuestionSteps(buildQuestions(weekIndex, scenario));
+      }
+
       lessons.push({
         day: dayCounter,
         title: `Day ${dayCounter}: ${title}`,
         microGoal: week.microGoals[dayIndex],
-        questions,
+        steps,
       });
       dayCounter += 1;
     });
@@ -1189,7 +1307,7 @@ const ensureSeeded = async () => {
   }
 
   const db = await getDb();
-  const countResult = await db`SELECT COUNT(*)::int AS count FROM lessons`;
+  const countResult = await db`SELECT COUNT(*)::int AS count FROM lesson_steps`;
   const count = Number(countResult.rows[0]?.count ?? 0);
   if (count > 0) {
     seeded = true;
@@ -1201,28 +1319,37 @@ const ensureSeeded = async () => {
     await db`
       INSERT INTO lessons (day, title, micro_goal)
       VALUES (${lesson.day}, ${lesson.title}, ${lesson.microGoal})
+      ON CONFLICT (day) DO UPDATE
+      SET title = EXCLUDED.title,
+          micro_goal = EXCLUDED.micro_goal
     `;
-    for (const question of lesson.questions) {
+
+    for (const [index, step] of lesson.steps.entries()) {
+      const choicesJson = step.choices ? JSON.stringify(step.choices) : null;
       await db`
-        INSERT INTO questions (
+        INSERT INTO lesson_steps (
           lesson_day,
           sort_order,
           type,
+          title,
+          body,
+          example,
           prompt,
-          options,
+          choices,
           correct_index,
-          feedback_correct,
-          feedback_incorrect
+          explanation
         )
         VALUES (
           ${lesson.day},
-          ${question.sortOrder ?? 0},
-          ${question.type},
-          ${question.prompt},
-          ${JSON.stringify(question.options)}::jsonb,
-          ${question.correctIndex},
-          ${question.feedbackCorrect},
-          ${question.feedbackIncorrect}
+          ${index + 1},
+          ${step.type},
+          ${step.title ?? null},
+          ${step.body ?? null},
+          ${step.example ?? null},
+          ${step.prompt ?? null},
+          ${choicesJson}::jsonb,
+          ${step.correctIndex ?? null},
+          ${step.explanation ?? null}
         )
       `;
     }
@@ -1245,133 +1372,116 @@ export const getLessonForDay = async (day: number): Promise<Lesson | null> => {
     return null;
   }
 
-  const questionResult = await db`
-    SELECT id, lesson_day, sort_order, type, prompt, options, correct_index, feedback_correct, feedback_incorrect
-    FROM questions
+  const stepResult = await db`
+    SELECT id, lesson_day, sort_order, type, title, body, example, prompt, choices, correct_index, explanation
+    FROM lesson_steps
     WHERE lesson_day = ${day}
     ORDER BY sort_order ASC, id ASC
   `;
 
-  const questions = questionResult.rows.map((row) => {
-    const questionRow = row as QuestionRow;
+  const steps = stepResult.rows.map((row) => {
+    const stepRow = row as LessonStepRow;
+    const stepType = stepRow.type === "learn" ? "learn" : stepRow.type === "fix" ? "fix" : "mcq";
     return {
-      id: Number(questionRow.id),
-      lessonDay: Number(questionRow.lesson_day),
-      sortOrder: Number(questionRow.sort_order),
-      type: questionRow.type === "fix_the_mistake" ? "fix_the_mistake" : "multiple_choice",
-      prompt: String(questionRow.prompt),
-      options: toOptions(questionRow.options),
-      correctIndex: Number(questionRow.correct_index),
-      feedbackCorrect: String(questionRow.feedback_correct),
-      feedbackIncorrect: String(questionRow.feedback_incorrect),
-    } satisfies Question;
+      id: Number(stepRow.id),
+      lessonDay: Number(stepRow.lesson_day),
+      sortOrder: Number(stepRow.sort_order),
+      type: stepType,
+      title: stepRow.title,
+      body: stepRow.body,
+      example: stepRow.example,
+      prompt: stepRow.prompt,
+      choices: toOptions(stepRow.choices),
+      correctIndex: stepRow.correct_index,
+      explanation: stepRow.explanation,
+    } satisfies LessonStep;
   });
 
   return {
     day: Number(lessonRow.day),
     title: String(lessonRow.title),
     microGoal: String(lessonRow.micro_goal),
-    questions,
+    steps,
   };
 };
 
-export const getAnswersForDay = async (userId: number, day: number) => {
+export const getStepProgressForDay = async (userId: number, day: number) => {
   await ensureSeeded();
   const db = await getDb();
   const result = await db`
-    SELECT ua.question_id, ua.selected_index, ua.is_correct
-    FROM user_answers ua
-    INNER JOIN questions q ON q.id = ua.question_id
-    WHERE ua.user_id = ${userId} AND q.lesson_day = ${day}
+    SELECT sp.step_id, sp.selected_index, sp.is_correct
+    FROM user_step_progress sp
+    INNER JOIN lesson_steps ls ON ls.id = sp.step_id
+    WHERE sp.user_id = ${userId} AND ls.lesson_day = ${day}
   `;
-  const map = new Map<number, AnswerRow>();
+  const map = new Map<number, StepProgressRow>();
   result.rows.forEach((row) => {
-    const answer = row as AnswerRow;
-    map.set(Number(answer.question_id), {
-      question_id: Number(answer.question_id),
-      selected_index: Number(answer.selected_index),
-      is_correct: Boolean(answer.is_correct),
+    const progress = row as StepProgressRow;
+    map.set(Number(progress.step_id), {
+      step_id: Number(progress.step_id),
+      selected_index: progress.selected_index ?? null,
+      is_correct: progress.is_correct ?? null,
     });
   });
   return map;
 };
 
-export const getQuestionById = async (questionId: number) => {
+export const getStepById = async (stepId: number) => {
   await ensureSeeded();
   const db = await getDb();
   const result = await db`
-    SELECT id, lesson_day, sort_order, type, prompt, options, correct_index, feedback_correct, feedback_incorrect
-    FROM questions
-    WHERE id = ${questionId}
+    SELECT id, lesson_day, sort_order, type, title, body, example, prompt, choices, correct_index, explanation
+    FROM lesson_steps
+    WHERE id = ${stepId}
     LIMIT 1
   `;
-  const row = result.rows[0] as QuestionRow | undefined;
+  const row = result.rows[0] as LessonStepRow | undefined;
   if (!row) {
     return null;
   }
-
+  const stepType = row.type === "learn" ? "learn" : row.type === "fix" ? "fix" : "mcq";
   return {
     id: Number(row.id),
     lessonDay: Number(row.lesson_day),
     sortOrder: Number(row.sort_order),
-    type: row.type === "fix_the_mistake" ? "fix_the_mistake" : "multiple_choice",
-    prompt: String(row.prompt),
-    options: toOptions(row.options),
-    correctIndex: Number(row.correct_index),
-    feedbackCorrect: String(row.feedback_correct),
-    feedbackIncorrect: String(row.feedback_incorrect),
-  } satisfies Question;
+    type: stepType,
+    title: row.title,
+    body: row.body,
+    example: row.example,
+    prompt: row.prompt,
+    choices: toOptions(row.choices),
+    correctIndex: row.correct_index,
+    explanation: row.explanation,
+  } satisfies LessonStep;
 };
 
-export const recordAnswer = async (
-  userId: number,
-  questionId: number,
-  selectedIndex: number
-) => {
-  const question = await getQuestionById(questionId);
-  if (!question) {
+export const recordLearnStep = async (userId: number, stepId: number) => {
+  const step = await getStepById(stepId);
+  if (!step || step.type !== "learn") {
     return null;
   }
-
-  const isCorrect = selectedIndex === question.correctIndex;
   const db = await getDb();
   await db`
-    INSERT INTO user_answers (user_id, question_id, selected_index, is_correct)
-    VALUES (${userId}, ${questionId}, ${selectedIndex}, ${isCorrect})
-    ON CONFLICT (user_id, question_id) DO NOTHING
+    INSERT INTO user_step_progress (user_id, step_id, selected_index, is_correct)
+    VALUES (${userId}, ${stepId}, NULL, NULL)
+    ON CONFLICT (user_id, step_id) DO NOTHING
   `;
-  return { question, isCorrect };
+  return step;
 };
 
-export const getAnswerForQuestion = async (userId: number, questionId: number) => {
-  await ensureSeeded();
-  const db = await getDb();
-  const result = await db`
-    SELECT question_id, selected_index, is_correct
-    FROM user_answers
-    WHERE user_id = ${userId} AND question_id = ${questionId}
-    LIMIT 1
-  `;
-  const row = result.rows[0] as AnswerRow | undefined;
-  if (!row) {
+export const recordAnswer = async (userId: number, stepId: number, selectedIndex: number) => {
+  const step = await getStepById(stepId);
+  if (!step || step.type === "learn") {
     return null;
   }
-  return {
-    questionId: Number(row.question_id),
-    selectedIndex: Number(row.selected_index),
-    isCorrect: Boolean(row.is_correct),
-  };
-};
-
-export const getAnsweredCount = async (userId: number, day: number) => {
-  await ensureSeeded();
+  const correctIndex = step.correctIndex ?? -1;
+  const isCorrect = selectedIndex === correctIndex;
   const db = await getDb();
-  const result = await db`
-    SELECT COUNT(*)::int AS count
-    FROM user_answers ua
-    INNER JOIN questions q ON q.id = ua.question_id
-    WHERE ua.user_id = ${userId} AND q.lesson_day = ${day}
+  await db`
+    INSERT INTO user_step_progress (user_id, step_id, selected_index, is_correct)
+    VALUES (${userId}, ${stepId}, ${selectedIndex}, ${isCorrect})
+    ON CONFLICT (user_id, step_id) DO NOTHING
   `;
-  return Number(result.rows[0]?.count ?? 0);
+  return { step, isCorrect };
 };
 
