@@ -8,10 +8,10 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 type ProgressRow = {
   user_id: number;
-  start_date: string;
+  start_date: string | Date;
   xp: number;
   streak: number;
-  last_completed_date?: string | null;
+  last_completed_date?: string | Date | null;
 };
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
@@ -21,15 +21,41 @@ const toDateStringLocal = (date: Date) =>
 
 const todayString = () => toDateStringLocal(new Date());
 
+const normalizeDateValue = (value?: string | Date | null) => {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return toDateStringLocal(value);
+  }
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return toDateStringLocal(parsed);
+  }
+  return trimmed;
+};
+
 const parseDateString = (value: string) => {
-  const [year, month, day] = value.split("-").map(Number);
+  const normalized = normalizeDateValue(value) ?? todayString();
+  const [year, month, day] = normalized.split("-").map(Number);
   return new Date(year, month - 1, day);
 };
 
 const daysBetween = (start: string, end: string) => {
   const startDate = parseDateString(start);
   const endDate = parseDateString(end);
-  return Math.floor((endDate.getTime() - startDate.getTime()) / MS_PER_DAY);
+  const diff = endDate.getTime() - startDate.getTime();
+  if (!Number.isFinite(diff)) {
+    return 0;
+  }
+  return Math.floor(diff / MS_PER_DAY);
 };
 
 const ensureProgressRow = async (userId: number) => {
@@ -43,12 +69,14 @@ const ensureProgressRow = async (userId: number) => {
 
   if (existing.rows[0]) {
     const row = existing.rows[0] as ProgressRow;
+    const startDate = normalizeDateValue(row.start_date) ?? todayString();
+    const lastCompleted = normalizeDateValue(row.last_completed_date);
     return {
       user_id: Number(row.user_id),
-      start_date: String(row.start_date),
+      start_date: startDate,
       xp: Number(row.xp),
       streak: Number(row.streak),
-      last_completed_date: row.last_completed_date ? String(row.last_completed_date) : null,
+      last_completed_date: lastCompleted,
     };
   }
 
@@ -66,12 +94,14 @@ const ensureProgressRow = async (userId: number) => {
     LIMIT 1
   `;
   const row = inserted.rows[0] as ProgressRow;
+  const startDate = normalizeDateValue(row.start_date) ?? todayString();
+  const lastCompleted = normalizeDateValue(row.last_completed_date);
   return {
     user_id: Number(row.user_id),
-    start_date: String(row.start_date),
+    start_date: startDate,
     xp: Number(row.xp),
     streak: Number(row.streak),
-    last_completed_date: row.last_completed_date ? String(row.last_completed_date) : null,
+    last_completed_date: lastCompleted,
   };
 };
 
