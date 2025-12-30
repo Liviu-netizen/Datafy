@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+﻿import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { getLessonForDay, getStepProgressForDay } from "@/lib/lessons";
@@ -60,7 +60,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
         <div className="mimo-progress">
           <span>Step {currentIndex} of {totalSteps}</span>
-          <span>{dashboard.xp} XP � {dashboard.streak} streak</span>
+          <span>{dashboard.xp} XP • {dashboard.streak} streak</span>
         </div>
 
         {errorValue ? <div className="mimo-alert">{errorValue}</div> : null}
@@ -162,3 +162,4 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     </div>
   );
 }
+
