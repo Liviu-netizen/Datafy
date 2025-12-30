@@ -94,11 +94,11 @@ const ensureProgressRow = async (userId: number) => {
     LIMIT 1
   `;
   const row = inserted.rows[0] as ProgressRow;
-  const startDate = normalizeDateValue(row.start_date) ?? todayString();
+  const insertedStartDate = normalizeDateValue(row.start_date) ?? todayString();
   const lastCompleted = normalizeDateValue(row.last_completed_date);
   return {
     user_id: Number(row.user_id),
-    start_date: startDate,
+    start_date: insertedStartDate,
     xp: Number(row.xp),
     streak: Number(row.streak),
     last_completed_date: lastCompleted,
