@@ -1,5 +1,4 @@
-﻿import "server-only";
-
+import "server-only";
 import { getDb } from "./db";
 
 const TOTAL_DAYS = 84;
@@ -15,7 +14,6 @@ type ProgressRow = {
 };
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
-
 const toDateStringLocal = (date: Date) =>
   `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 
@@ -61,7 +59,7 @@ const daysBetween = (start: string, end: string) => {
   return Math.floor(diff / MS_PER_DAY);
 };
 
-const ensureProgressRow = async (userId: number) => {
+export const ensureProgressRow = async (userId: number) => {
   const db = await getDb();
   const existing = await db`
     SELECT user_id, start_date, xp, streak, last_completed_date
@@ -126,6 +124,17 @@ const isTodayCompleted = async (userId: number, dayNumber: number) => {
     LIMIT 1
   `;
   return Boolean(result.rows[0]);
+};
+
+export const getCompletedDays = async (userId: number) => {
+  const db = await getDb();
+  const result = await db`
+    SELECT day
+    FROM user_days
+    WHERE user_id = ${userId}
+    ORDER BY day
+  `;
+  return result.rows.map((row) => Number(row.day));
 };
 
 const resetStreakIfMissed = async (progress: ProgressRow, today: string) => {
@@ -205,5 +214,3 @@ export const completeToday = async (userId: number) => {
 
   return { status: "completed" as const };
 };
-
-

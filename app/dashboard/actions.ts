@@ -3,13 +3,19 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { deleteSession, getSessionUser } from "@/lib/auth";
-import { getLessonForDay, getStepById, getStepProgressForDay, recordAnswer, recordLearnStep } from "@/lib/lessons";
+import {
+  getLessonForDay,
+  getStepById,
+  getStepProgressForDay,
+  recordAnswer,
+  recordLearnStep,
+} from "@/lib/lessons";
 import { completeToday, getDashboardData } from "@/lib/progress";
+import { recordSkillCheckAnswer } from "@/lib/skill-checks";
 
 export const logout = async () => {
   const cookieStore = await cookies();
   const sessionId = cookieStore.get("session")?.value;
-
   if (sessionId) {
     await deleteSession(sessionId);
   }
@@ -80,7 +86,7 @@ export const submitAnswer = async (formData: FormData) => {
   }
 
   await recordAnswer(user.id, stepId, answerIndex);
-  redirect(`/dashboard?show=${stepId}`);
+  redirect(`/dashboard?view=lesson&show=${stepId}`);
 };
 
 export const continueLesson = async (formData: FormData) => {
@@ -114,5 +120,36 @@ export const continueLesson = async (formData: FormData) => {
     await recordLearnStep(user.id, stepId);
   }
 
-  redirect("/dashboard");
+  redirect("/dashboard?view=lesson");
+};
+
+export const submitSkillCheck = async (formData: FormData) => {
+  const cookieStore = await cookies();
+  const sessionId = cookieStore.get("session")?.value;
+  if (!sessionId) {
+    redirect("/login");
+  }
+
+  const user = await getSessionUser(sessionId);
+  if (!user) {
+    redirect("/login");
+  }
+
+  const checkId = String(formData.get("checkId") ?? "");
+  const choiceValue = formData.get("choiceIndex");
+  const choiceIndex = Number(choiceValue);
+
+  if (!checkId || Number.isNaN(choiceIndex)) {
+    redirect("/dashboard");
+  }
+
+  const result = await recordSkillCheckAnswer(user.id, checkId, choiceIndex);
+  if (!result.ok) {
+    redirect("/dashboard");
+  }
+
+  const outcome = result.correct ? "correct" : "wrong";
+  redirect(
+    `/dashboard?view=skill&check=${encodeURIComponent(checkId)}&result=${outcome}`
+  );
 };
