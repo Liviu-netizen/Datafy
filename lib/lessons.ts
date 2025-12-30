@@ -1667,30 +1667,26 @@ const buildDefaultLessonSteps = (
   dayTitle: string,
   microGoal: string,
   scenario: Scenario
-) => {
-  const intuition =
-    defaultIntuitionByWeek[weekIndex]?.() ??
-    ({
+): LessonStepSeed[] => {
+  const intuition: LessonStepSeed =
+    defaultIntuitionByWeek[weekIndex]?.() ?? {
       type: "intuition",
       title: "Picture this",
-      body:
-        "You arrange items into simple groups so the important ones stand out.",
-    } as const);
+      body: "You arrange items into simple groups so the important ones stand out.",
+    };
   const prompt = buildScenarioPrompt(scenario);
-  return [
-    intuition,
-    {
-      type: "learn",
-      title: "What you will do",
-      body: microGoal,
-      example: `Example: ${prompt}`,
-    },
-    {
-      type: "learn",
-      title: "Why it matters",
-      body: `This skill helps you answer questions like: ${prompt}`,
-    },
-  ];
+  const learnIntro: LessonStepSeed = {
+    type: "learn",
+    title: "What you will do",
+    body: microGoal,
+    example: `Example: ${prompt}`,
+  };
+  const learnWhy: LessonStepSeed = {
+    type: "learn",
+    title: "Why it matters",
+    body: `This skill helps you answer questions like: ${prompt}`,
+  };
+  return [intuition, learnIntro, learnWhy];
 };
 
 const buildLessons = () => {
