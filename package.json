@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "next build && npm run seed",
     "start": "next start",
     "lint": "eslint",
+    "seed": "tsx scripts/seed.ts",
     "content:check": "tsx scripts/content-check.ts"
   },
   "dependencies": {
