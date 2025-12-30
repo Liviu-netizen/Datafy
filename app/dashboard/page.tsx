@@ -69,10 +69,13 @@ const exampleCards = [
 ];
 
 type DashboardPageProps = {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams?:
+    | Promise<{ [key: string]: string | string[] | undefined }>
+    | { [key: string]: string | string[] | undefined };
 };
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const params = await Promise.resolve(searchParams);
   const cookieStore = await cookies();
   const sessionId = cookieStore.get("session")?.value;
   if (!sessionId) {
@@ -90,19 +93,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const rank = getRank(dashboard.xp);
   const progressPercent = Math.round(rank.progress * 100);
 
-  const showParam = typeof searchParams?.show === "string" ? searchParams.show : "";
-  const errorParam = typeof searchParams?.error === "string" ? searchParams.error : "";
+  const showParam = typeof params?.show === "string" ? params.show : "";
+  const errorParam = typeof params?.error === "string" ? params.error : "";
   const showId = Number.isFinite(Number(showParam)) ? Number(showParam) : null;
-  const viewParam = typeof searchParams?.view === "string" ? searchParams.view : "";
+  const viewParam = typeof params?.view === "string" ? params.view : "";
   const view = viewParam || (showId || errorParam ? "lesson" : "home");
-  const dayParam = typeof searchParams?.day === "string" ? searchParams.day : "";
+  const dayParam = typeof params?.day === "string" ? params.day : "";
   const requestedDay = Number(dayParam);
-  const stepParam = typeof searchParams?.step === "string" ? searchParams.step : "";
+  const stepParam = typeof params?.step === "string" ? params.step : "";
   const requestedStep = Number(stepParam);
-  const checkParam = typeof searchParams?.check === "string" ? searchParams.check : "";
-  const resultParam = typeof searchParams?.result === "string" ? searchParams.result : "";
+  const checkParam = typeof params?.check === "string" ? params.check : "";
+  const resultParam = typeof params?.result === "string" ? params.result : "";
   const exampleParam =
-    typeof searchParams?.example === "string" ? searchParams.example : "";
+    typeof params?.example === "string" ? params.example : "";
 
   if (view === "lesson") {
     const lesson = await getLessonForDay(dashboard.dayNumber);
