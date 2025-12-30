@@ -8,7 +8,7 @@ import {
   getLatestCheckpointAttempt,
   hasPassedCheckpoint,
 } from "@/lib/checkpoints";
-import { getCompletedDays, getDashboardData } from "@/lib/progress";
+import { getDashboardData, isLessonStepsComplete } from "@/lib/progress";
 import {
   continueCheckpoint,
   finalizeCheckpoint,
@@ -45,8 +45,8 @@ export default async function CheckpointPage({ params, searchParams }: Checkpoin
     redirect("/dashboard?error=Checkpoint%20locked%20until%20you%20reach%20this%20day.");
   }
 
-  const completedDays = await getCompletedDays(user.id);
-  if (!completedDays.includes(day)) {
+  const lessonComplete = await isLessonStepsComplete(user.id, day);
+  if (!lessonComplete) {
     redirect("/dashboard?view=lesson&error=Finish%20the%20lesson%20first.");
   }
 

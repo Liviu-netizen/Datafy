@@ -101,7 +101,7 @@ const getYesterdayString = (today: string) => {
   return toDateStringLocal(date);
 };
 
-const isLessonCompleted = async (userId: number, dayNumber: number) => {
+const hasUserDay = async (userId: number, dayNumber: number) => {
   const db = await getDb();
   const result = await db`
     SELECT day
@@ -110,6 +110,67 @@ const isLessonCompleted = async (userId: number, dayNumber: number) => {
     LIMIT 1
   `;
   return Boolean(result.rows[0]);
+};
+
+const getLessonProgressCounts = async (userId: number, dayNumber: number) => {
+  const db = await getDb();
+  const result = await db`
+    SELECT
+      (SELECT COUNT(*) FROM lesson_steps WHERE lesson_day = ${dayNumber}) AS total_steps,
+      (SELECT COUNT(*)
+         FROM user_step_progress sp
+         INNER JOIN lesson_steps ls ON ls.id = sp.step_id
+         WHERE sp.user_id = ${userId} AND ls.lesson_day = ${dayNumber}
+      ) AS completed_steps
+  `;
+  const row = result.rows[0] as {
+    total_steps: string | number;
+    completed_steps: string | number;
+  };
+  return {
+    total: Number(row.total_steps),
+    completed: Number(row.completed_steps),
+  };
+};
+
+export const isLessonStepsComplete = async (
+  userId: number,
+  dayNumber: number
+) => {
+  const counts = await getLessonProgressCounts(userId, dayNumber);
+  return counts.total > 0 && counts.completed >= counts.total;
+};
+
+const recordLessonCompletion = async (
+  userId: number,
+  dayNumber: number,
+  progress: ProgressRow,
+  today: string
+) => {
+  if (await hasUserDay(userId, dayNumber)) {
+    return { status: "already" as const };
+  }
+
+  const yesterday = getYesterdayString(today);
+  const lastDate = normalizeDateValueString(progress.last_completed_date);
+  const streak = lastDate === yesterday ? progress.streak + 1 : 1;
+  const xp = progress.xp + XP_PER_DAY;
+
+  const db = await getDb();
+  await db`
+    INSERT INTO user_days (user_id, day, completed_date)
+    VALUES (${userId}, ${dayNumber}, ${today})
+  `;
+  await db`
+    UPDATE user_progress
+    SET xp = ${xp},
+        streak = ${streak},
+        last_completed_date = ${today},
+        updated_at = NOW()
+    WHERE user_id = ${userId}
+  `;
+
+  return { status: "completed" as const };
 };
 
 const getMaxPassedCheckpointDay = async (userId: number) => {
@@ -165,7 +226,12 @@ export const getDashboardData = async (userId: number) => {
   const maxPassedCheckpoint = await getMaxPassedCheckpointDay(userId);
   const dayNumber = Math.min(maxPassedCheckpoint + 1, TOTAL_DAYS);
   const completedAll = maxPassedCheckpoint >= TOTAL_DAYS;
-  const lessonCompleted = !completedAll && (await isLessonCompleted(userId, dayNumber));
+  const hasDay = await hasUserDay(userId, dayNumber);
+  const progressComplete = !completedAll && (await isLessonStepsComplete(userId, dayNumber));
+  const lessonCompleted = !completedAll && (hasDay || progressComplete);
+  if (!completedAll && progressComplete && !hasDay) {
+    await recordLessonCompletion(userId, dayNumber, normalized, today);
+  }
   const checkpointPassed = maxPassedCheckpoint >= dayNumber;
 
   return {
@@ -192,28 +258,5 @@ export const completeToday = async (userId: number) => {
     return { status: "finished" as const };
   }
 
-  if (await isLessonCompleted(userId, dayNumber)) {
-    return { status: "already" as const };
-  }
-
-  const yesterday = getYesterdayString(today);
-  const lastDate = normalizeDateValueString(progress.last_completed_date);
-  const streak = lastDate === yesterday ? progress.streak + 1 : 1;
-  const xp = progress.xp + XP_PER_DAY;
-
-  const db = await getDb();
-  await db`
-    INSERT INTO user_days (user_id, day, completed_date)
-    VALUES (${userId}, ${dayNumber}, ${today})
-  `;
-  await db`
-    UPDATE user_progress
-    SET xp = ${xp},
-        streak = ${streak},
-        last_completed_date = ${today},
-        updated_at = NOW()
-    WHERE user_id = ${userId}
-  `;
-
-  return { status: "completed" as const };
+  return recordLessonCompletion(userId, dayNumber, progress, today);
 };

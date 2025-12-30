@@ -10,7 +10,7 @@ import {
   recordCheckpointAnswer,
   resetCheckpointAnswers,
 } from "@/lib/checkpoints";
-import { getCompletedDays, getDashboardData } from "@/lib/progress";
+import { getDashboardData, isLessonStepsComplete } from "@/lib/progress";
 
 const requireUser = async () => {
   const cookieStore = await cookies();
@@ -31,8 +31,8 @@ const ensureCheckpointAccess = async (userId: number, day: number) => {
   if (!Number.isFinite(day) || day > dashboard.dayNumber) {
     redirect("/dashboard");
   }
-  const completedDays = await getCompletedDays(userId);
-  if (!completedDays.includes(day)) {
+  const lessonComplete = await isLessonStepsComplete(userId, day);
+  if (!lessonComplete) {
     redirect("/dashboard?error=Finish%20the%20lesson%20first.");
   }
 };
