@@ -264,6 +264,29 @@ button {
   gap: 12px;
 }
 
+.mimo-intuition-card {
+  margin-top: 20px;
+  border-radius: 22px;
+  padding: 20px 18px;
+  background: #fff7ec;
+  color: #1f2937;
+  border: 1px solid #f1e0c8;
+  display: grid;
+  gap: 12px;
+}
+
+.mimo-intuition-tag {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  background: rgba(251, 191, 36, 0.2);
+}
+
 .mimo-learn-title {
   font-size: 20px;
   font-weight: 700;
@@ -283,6 +306,19 @@ button {
   background: rgba(148, 163, 184, 0.15);
   border-radius: 14px;
   padding: 10px 12px;
+}
+
+.mimo-intuition-card .mimo-learn-title {
+  color: #111827;
+}
+
+.mimo-intuition-card .mimo-learn-body {
+  color: #374151;
+}
+
+.mimo-intuition-card .mimo-learn-example {
+  color: #1f2937;
+  background: rgba(248, 211, 140, 0.35);
 }
 
 .mimo-question-tag {

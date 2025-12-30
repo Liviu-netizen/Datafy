@@ -152,8 +152,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             ) : dashboard.todayCompleted ? (
               <div className="mimo-note">Today is complete. Come back tomorrow.</div>
             ) : currentStep ? (
-              currentStep.type === "learn" ? (
-                <div className="mimo-learn-card float-in">
+              currentStep.type === "learn" || currentStep.type === "intuition" ? (
+                <div
+                  className={`${
+                    currentStep.type === "intuition"
+                      ? "mimo-intuition-card"
+                      : "mimo-learn-card"
+                  } float-in`}
+                >
+                  {currentStep.type === "intuition" ? (
+                    <span className="mimo-intuition-tag">Intuition</span>
+                  ) : null}
                   {currentStep.title ? (
                     <h2 className="mimo-learn-title">{currentStep.title}</h2>
                   ) : null}
@@ -273,8 +282,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <span>Read-only</span>
             </div>
 
-            {currentStep.type === "learn" ? (
-              <div className="mimo-learn-card float-in">
+            {currentStep.type === "learn" || currentStep.type === "intuition" ? (
+              <div
+                className={`${
+                  currentStep.type === "intuition"
+                    ? "mimo-intuition-card"
+                    : "mimo-learn-card"
+                } float-in`}
+              >
+                {currentStep.type === "intuition" ? (
+                  <span className="mimo-intuition-tag">Intuition</span>
+                ) : null}
                 {currentStep.title ? (
                   <h2 className="mimo-learn-title">{currentStep.title}</h2>
                 ) : null}

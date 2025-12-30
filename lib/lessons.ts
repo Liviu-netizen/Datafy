@@ -78,7 +78,7 @@ type LessonStep = {
   id: number;
   lessonDay: number;
   sortOrder: number;
-  type: "learn" | "mcq" | "fix";
+  type: "intuition" | "learn" | "mcq" | "fix";
   title?: string | null;
   body?: string | null;
   example?: string | null;
@@ -89,7 +89,7 @@ type LessonStep = {
 };
 
 type LessonStepSeed = {
-  type: "learn" | "mcq" | "fix";
+  type: "intuition" | "learn" | "mcq" | "fix";
   title?: string;
   body?: string;
   example?: string;
@@ -499,6 +499,26 @@ const weekPlans = [
       { case: "inventory risk", metric: "stockouts" },
     ],
   },
+];
+
+const week1MicroGoals = [
+  "Turn a vague question into one clear next step.",
+  "Pick a number that guides action, not just attention.",
+  "Tell the difference between a pattern and a cause.",
+  "Spot chart choices that exaggerate a change.",
+  "Connect a question to a single decision.",
+  "Compare results to a fair starting point.",
+  "Sum up the story in one short update.",
+];
+
+const week2MicroGoals = [
+  "Clean a spreadsheet list so it is ready to use.",
+  "Make names and labels match exactly.",
+  "Standardize dates so they sort correctly.",
+  "Use IF to label rows with a simple rule.",
+  "Use COUNTIF and SUMIF to total with a rule.",
+  "Remove duplicates without losing real records.",
+  "Use a simple cleanup checklist before sharing.",
 ];
 
 const toOptions = (value: unknown) => {
@@ -1210,58 +1230,459 @@ const buildQuestionSteps = (questions: QuestionSeed[]): LessonStepSeed[] =>
     explanation: toExplanation(question.feedbackCorrect || question.feedbackIncorrect),
   }));
 
-const buildDayOneSteps = (): LessonStepSeed[] => {
-  const scenario = weekPlans[0].scenarios[0];
-  const questions = buildWeek1Questions(scenario);
-  return [
-    {
-      type: "learn",
-      title: "Ask for a decision",
+const week1Scaffolds = [
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
       body:
-        "A good analysis starts with a decision you can act on. Replace vague questions with a specific step in the journey. Clear questions create clear work.",
-      example: "Example: Which signup step causes the biggest drop?",
+        "You are planning a road trip. \"Will we have fun?\" is too big. \"Which stop makes the trip too long?\" tells you what to change. A clear question points to one fix.",
     },
-    {
-      type: "learn",
-      title: "Use a meaningful metric",
-      body:
-        "Vanity metrics can rise while outcomes fall. Choose a metric tied to value, like activation or conversion. If it moves, you know what to fix.",
-      example: "Example: Trial activation rate, not app installs.",
-    },
-    ...buildQuestionSteps(questions),
-    {
+    learn: [
+      {
+        type: "learn",
+        title: "Focus on one step",
+        body: `For a ${scenario.product}, pick a single moment to inspect, like sign-up or first use. That keeps the work small and specific.`,
+      },
+      {
+        type: "learn",
+        title: "Make the decision obvious",
+        body:
+          "Ask a question that ends with a choice: keep the current flow, change one step, or test a new one.",
+      },
+    ],
+    recap: {
       type: "learn",
       title: "Recap",
       body:
-        "Ask an actionable question, pick a metric tied to value, and keep the story honest. What would you tell your manager?",
+        "Good questions lead to a clear decision and a single place to look. What would you tell your manager?",
     },
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "A cafe looks busy from the street, but the owner cares about paid orders. The right number tells you if the cafe is healthy.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "What a metric means",
+        body: `A metric is a number that shows health. For a ${scenario.product}, ${scenario.metric} shows if visitors move forward.`,
+      },
+      {
+        type: "learn",
+        title: "Vanity vs action",
+        body: `Big counts like ${scenario.vanityMetric} can rise while ${scenario.metric} stays flat. Choose the number that would change what the team does tomorrow.`,
+      },
+    ],
+    recap: {
+      type: "learn",
+      title: "Recap",
+      body:
+        "Choose a number tied to outcomes, not just attention. What would you tell your manager?",
+    },
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "Umbrellas and rain show up together. The umbrellas did not cause the rain. They just arrive at the same time.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "Pattern vs cause",
+        body:
+          "When two things move together, you have a pattern. That pattern is called correlation.",
+      },
+      {
+        type: "learn",
+        title: "Prove the cause",
+        body: `If ${scenario.metric} changed after a new idea, say it might be related unless you can point to a test you controlled.`,
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "Zoom in on a small scratch and it looks huge. The view you choose changes the story.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "Scale matters",
+        body: `Charts can exaggerate changes in ${scenario.metric} by cropping the scale or skipping labels.`,
+      },
+      {
+        type: "learn",
+        title: "Tell the honest story",
+        body:
+          "Use clear labels and a fair range so a small change looks small and a big change looks big.",
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "At dinner, \"what should we eat?\" is vague. \"Do we want pasta or salad?\" leads to a choice.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "Start with the decision",
+        body: `For a ${scenario.product}, decide what you might change first, like a message, a flow step, or a feature.`,
+      },
+      {
+        type: "learn",
+        title: "Write the question",
+        body:
+          "Phrase the question so it directly informs that decision. If you cannot name the decision, rewrite the question.",
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "Before you paint a wall, you look at the old color. That starting point helps you judge the change.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "Define a baseline",
+        body: `A baseline is the starting point you compare against, like ${scenario.metric} last week.`,
+      },
+      {
+        type: "learn",
+        title: "Make it fair",
+        body:
+          "Compare similar periods, like weekdays to weekdays, so your comparison is honest.",
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "You text a friend: what happened, why it matters, what next. Short and clear.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "One-sentence update",
+        body: `Start with the outcome in plain words. Example: \"${scenario.metric} changed for ${scenario.segment}.\"`,
+      },
+      {
+        type: "learn",
+        title: "Add the action",
+        body:
+          "End with what you recommend the team do next. Keep it one step.",
+      },
+    ],
+  }),
+];
+
+const week2Scaffolds = [
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "Your shopping list has crossed-out items, duplicates, and messy notes. You clean it before going to the store.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "What data is",
+        body: `Data is just the rows in a spreadsheet. In ${scenario.file}, each row is one record.`,
+      },
+      {
+        type: "learn",
+        title: "Cleaning basics",
+        body: `Start by checking ${scenario.column} for blanks or typos so your totals are reliable.`,
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "The same person is saved as \"Sam\", \"SAM\", and \"Sammy\". It looks like three people.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "Make text match",
+        body: `Standardize ${scenario.column} so labels match exactly. That keeps counts accurate.`,
+      },
+      {
+        type: "learn",
+        title: "Use simple fixes",
+        body:
+          "Trim spaces, fix casing, and replace common variants before you summarize.",
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "Three friends write the same date in three different ways. You cannot sort them.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "Pick one format",
+        body: `Choose one date format for ${scenario.dateColumn}, like YYYY-MM-DD.`,
+      },
+      {
+        type: "learn",
+        title: "Convert text to dates",
+        body:
+          "In Excel, convert text dates so they sort and filter correctly.",
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "A bouncer checks IDs: if age is 21+, allow entry. If not, deny.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "IF is a rule",
+        body:
+          "IF lets you label rows using a simple rule: if the condition is true, use one label, otherwise use another.",
+      },
+      {
+        type: "learn",
+        title: "Concrete example",
+        body: `Example: if ${scenario.metric} is over target, label it \"ok\"; otherwise \"needs work\".`,
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "You count red socks, then add up only the red socks' prices.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "COUNTIF counts with a rule",
+        body: `COUNTIF counts rows that match a condition, like ${scenario.metric} = \"high\".`,
+      },
+      {
+        type: "learn",
+        title: "SUMIF totals with a rule",
+        body: `SUMIF adds values for rows that match the condition, like summing ${scenario.metric} for one category.`,
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "A receipt is scanned twice, doubling the total. You need to keep just one.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "Why duplicates hurt",
+        body: `Duplicates make totals like ${scenario.metric} too high, so decisions are wrong.`,
+      },
+      {
+        type: "learn",
+        title: "Remove safely",
+        body: `Check the key column in ${scenario.file} (like an ID) so you remove true duplicates only.`,
+      },
+    ],
+  }),
+  (scenario: Scenario) => ({
+    intuition: {
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "A pilot runs a checklist before takeoff. It prevents easy mistakes.",
+    },
+    learn: [
+      {
+        type: "learn",
+        title: "Quick checklist",
+        body: `Scan ${scenario.file} for blanks, weird dates, and mismatched labels before you continue.`,
+      },
+      {
+        type: "learn",
+        title: "Save a clean copy",
+        body:
+          "Keep a cleaned version so you can always go back.",
+      },
+    ],
+  }),
+];
+
+const buildWeek1LessonSteps = (dayIndex: number, scenario: Scenario) => {
+  const scaffold = week1Scaffolds[dayIndex]?.(scenario);
+  if (!scaffold) {
+    return buildQuestionSteps(buildWeek1Questions(scenario));
+  }
+  const questions = buildWeek1Questions(scenario);
+  return [
+    scaffold.intuition,
+    ...scaffold.learn,
+    ...buildQuestionSteps(questions),
+    ...(scaffold.recap ? [scaffold.recap] : []),
   ];
 };
 
-const buildDayTwoSteps = (): LessonStepSeed[] => {
-  const scenario = weekPlans[0].scenarios[1];
-  const questions = buildWeek1Questions(scenario);
+const buildWeek2LessonSteps = (dayIndex: number, scenario: Scenario) => {
+  const scaffold = week2Scaffolds[dayIndex]?.(scenario);
+  if (!scaffold) {
+    return buildQuestionSteps(buildWeek2Questions(scenario));
+  }
+  const questions = buildWeek2Questions(scenario);
   return [
-    {
-      type: "learn",
-      title: "Action metrics vs vanity",
-      body:
-        "Action metrics change behavior. If the number drops, you know which step to improve. Vanity metrics only look good.",
-      example: "Example: Checkout conversion rate.",
-    },
-    {
-      type: "learn",
-      title: "Tie metrics to decisions",
-      body:
-        "A metric matters only if it changes a decision. Ask what the team would do differently if this number moved.",
-      example: "Example: Mobile conversion rate by traffic source.",
-    },
+    scaffold.intuition,
+    ...scaffold.learn,
     ...buildQuestionSteps(questions),
+  ];
+};
+
+const buildScenarioPrompt = (scenario: Scenario) => {
+  if (scenario.metric && scenario.dimension) {
+    return `Which ${scenario.dimension} drives ${scenario.metric}?`;
+  }
+  if (scenario.metric && scenario.segment) {
+    return `How does ${scenario.segment} affect ${scenario.metric}?`;
+  }
+  if (scenario.metric && scenario.channel) {
+    return `Which ${scenario.channel} performs best for ${scenario.metric}?`;
+  }
+  if (scenario.metric && scenario.table) {
+    return `What is ${scenario.metric} in ${scenario.table}?`;
+  }
+  return "What changed, and what should we do next?";
+};
+
+const defaultIntuitionByWeek = [
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You are trying to pick the best route home. You compare a few options and choose the one that saves time.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You sort a messy drawer into neat groups before you decide what to keep.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You separate receipts by store to see where most money goes.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You plan a party by listing the steps in order before doing any work.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "At a cafe, you only order the items you actually want, not everything on the menu.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You group similar items together to see the biggest categories fast.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "Your car dashboard shows speed, fuel, and warnings at a glance.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You build a presentation board by choosing only the most important points.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You use a tool to tidy a long list quickly, so you can work with it.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You compare shelves in a pantry to see which one empties fastest.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You compare two teams after giving them the same starting resources.",
+  }),
+  () => ({
+    type: "intuition" as const,
+    title: "Picture this",
+    body:
+      "You practice telling a short story so people understand it right away.",
+  }),
+];
+
+const buildDefaultLessonSteps = (
+  weekIndex: number,
+  dayTitle: string,
+  microGoal: string,
+  scenario: Scenario
+) => {
+  const intuition =
+    defaultIntuitionByWeek[weekIndex]?.() ??
+    ({
+      type: "intuition",
+      title: "Picture this",
+      body:
+        "You arrange items into simple groups so the important ones stand out.",
+    } as const);
+  const prompt = buildScenarioPrompt(scenario);
+  return [
+    intuition,
     {
       type: "learn",
-      title: "Recap",
-      body:
-        "Choose action metrics, connect them to decisions, and avoid vanity numbers. What would you tell your manager?",
+      title: "What you will do",
+      body: microGoal,
+      example: `Example: ${prompt}`,
+    },
+    {
+      type: "learn",
+      title: "Why it matters",
+      body: `This skill helps you answer questions like: ${prompt}`,
     },
   ];
 };
@@ -1279,19 +1700,33 @@ const buildLessons = () => {
     week.dayTitles.forEach((title, dayIndex) => {
       const scenario = week.scenarios[dayIndex % week.scenarios.length];
       let steps: LessonStepSeed[];
-
-      if (dayCounter === 1) {
-        steps = buildDayOneSteps();
-      } else if (dayCounter === 2) {
-        steps = buildDayTwoSteps();
+      if (weekIndex === 0) {
+        steps = buildWeek1LessonSteps(dayIndex, scenario);
+      } else if (weekIndex === 1) {
+        steps = buildWeek2LessonSteps(dayIndex, scenario);
       } else {
-        steps = buildQuestionSteps(buildQuestions(weekIndex, scenario));
+        steps = [
+          ...buildDefaultLessonSteps(
+            weekIndex,
+            title,
+            week.microGoals[dayIndex],
+            scenario
+          ),
+          ...buildQuestionSteps(buildQuestions(weekIndex, scenario)),
+        ];
       }
+
+      const microGoal =
+        weekIndex === 0
+          ? week1MicroGoals[dayIndex]
+          : weekIndex === 1
+          ? week2MicroGoals[dayIndex]
+          : week.microGoals[dayIndex];
 
       lessons.push({
         day: dayCounter,
         title: `Day ${dayCounter}: ${title}`,
-        microGoal: week.microGoals[dayIndex],
+        microGoal,
         steps,
       });
       dayCounter += 1;
@@ -1381,7 +1816,14 @@ export const getLessonForDay = async (day: number): Promise<Lesson | null> => {
 
   const steps = stepResult.rows.map((row) => {
     const stepRow = row as LessonStepRow;
-    const stepType = stepRow.type === "learn" ? "learn" : stepRow.type === "fix" ? "fix" : "mcq";
+    const stepType =
+      stepRow.type === "intuition"
+        ? "intuition"
+        : stepRow.type === "learn"
+        ? "learn"
+        : stepRow.type === "fix"
+        ? "fix"
+        : "mcq";
     return {
       id: Number(stepRow.id),
       lessonDay: Number(stepRow.lesson_day),
@@ -1439,7 +1881,14 @@ export const getStepById = async (stepId: number) => {
   if (!row) {
     return null;
   }
-  const stepType = row.type === "learn" ? "learn" : row.type === "fix" ? "fix" : "mcq";
+  const stepType =
+    row.type === "intuition"
+      ? "intuition"
+      : row.type === "learn"
+      ? "learn"
+      : row.type === "fix"
+      ? "fix"
+      : "mcq";
   return {
     id: Number(row.id),
     lessonDay: Number(row.lesson_day),
@@ -1457,7 +1906,7 @@ export const getStepById = async (stepId: number) => {
 
 export const recordLearnStep = async (userId: number, stepId: number) => {
   const step = await getStepById(stepId);
-  if (!step || step.type !== "learn") {
+  if (!step || (step.type !== "learn" && step.type !== "intuition")) {
     return null;
   }
   const db = await getDb();
@@ -1471,7 +1920,7 @@ export const recordLearnStep = async (userId: number, stepId: number) => {
 
 export const recordAnswer = async (userId: number, stepId: number, selectedIndex: number) => {
   const step = await getStepById(stepId);
-  if (!step || step.type === "learn") {
+  if (!step || step.type === "learn" || step.type === "intuition") {
     return null;
   }
   const correctIndex = step.correctIndex ?? -1;

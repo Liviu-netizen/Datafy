@@ -76,7 +76,7 @@ export const submitAnswer = async (formData: FormData) => {
   }
 
   const step = await getStepById(stepId);
-  if (!step || step.type === "learn") {
+  if (!step || step.type === "learn" || step.type === "intuition") {
     redirect("/dashboard");
   }
 
@@ -116,7 +116,7 @@ export const continueLesson = async (formData: FormData) => {
     redirect("/dashboard");
   }
 
-  if (step.type === "learn") {
+  if (step.type === "learn" || step.type === "intuition") {
     await recordLearnStep(user.id, stepId);
   }
 
