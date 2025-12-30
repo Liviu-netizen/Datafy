@@ -17,6 +17,7 @@ import {
 } from "./actions";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type CheckpointPageProps = {
   params: { day: string };

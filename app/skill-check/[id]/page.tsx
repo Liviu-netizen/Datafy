@@ -7,6 +7,7 @@ import { getDashboardData } from "@/lib/progress";
 import { submitSkillCheck } from "./actions";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type SkillCheckPageProps = {
   params: { id: string };

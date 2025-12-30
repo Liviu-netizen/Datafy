@@ -8,6 +8,7 @@ import { VisualCard } from "@/app/components/visual";
 import { markFinished } from "./actions";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type PatternPageProps = {
   params: { id: string };
