@@ -25,32 +25,46 @@ type CheckpointPageProps = {
 };
 
 export default async function CheckpointPage({ params, searchParams }: CheckpointPageProps) {
+  const debugParam = typeof searchParams?.debug === "string" ? searchParams.debug : "";
+  const debugMode = debugParam === "1";
+  const debugBuild = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local";
+  const renderDebug = (data: Record<string, unknown>) => (
+    <div className="mimo-shell dashboard-shell">
+      <div className="dashboard-wrap">
+        <div className="mimo-card">
+          <h1 className="mimo-title">Checkpoint debug</h1>
+          <pre className="debug-panel">{JSON.stringify(data, null, 2)}</pre>
+          <div className="lesson-actions">
+            <Link className="mimo-button" href="/dashboard">
+              Back to home
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const cookieStore = await cookies();
   const sessionId = cookieStore.get("session")?.value;
   if (!sessionId) {
+    if (debugMode) {
+      return renderDebug({ build: debugBuild, error: "no_session" });
+    }
     redirect("/login");
   }
 
   const user = await getSessionUser(sessionId);
   if (!user) {
+    if (debugMode) {
+      return renderDebug({ build: debugBuild, error: "session_user_missing" });
+    }
     redirect("/login");
   }
 
   const day = Number(params.day);
-  const debugParam = typeof searchParams?.debug === "string" ? searchParams.debug : "";
-  const debugMode = debugParam === "1";
   if (!Number.isFinite(day)) {
     if (debugMode) {
-      return (
-        <div className="mimo-shell dashboard-shell">
-          <div className="dashboard-wrap">
-            <div className="mimo-card">
-              <h1 className="mimo-title">Checkpoint debug</h1>
-              <pre className="debug-panel">{JSON.stringify({ error: "invalid_day" }, null, 2)}</pre>
-            </div>
-          </div>
-        </div>
-      );
+      return renderDebug({ build: debugBuild, error: "invalid_day", day: params.day });
     }
     redirect("/dashboard");
   }
@@ -63,30 +77,16 @@ export default async function CheckpointPage({ params, searchParams }: Checkpoin
   const test = await getCheckpointTestForDay(day);
   const missingTest = !test;
 
+  const debugData = {
+    build: debugBuild,
+    day,
+    dashboardDay: dashboard.dayNumber,
+    dayLocked,
+    lessonComplete,
+    testFound: Boolean(test),
+  };
   if (debugMode && (dayLocked || !lessonComplete || missingTest)) {
-    const debugData = {
-      build: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
-      day,
-      dashboardDay: dashboard.dayNumber,
-      dayLocked,
-      lessonComplete,
-      testFound: Boolean(test),
-    };
-    return (
-      <div className="mimo-shell dashboard-shell">
-        <div className="dashboard-wrap">
-          <div className="mimo-card">
-            <h1 className="mimo-title">Checkpoint debug</h1>
-            <pre className="debug-panel">{JSON.stringify(debugData, null, 2)}</pre>
-            <div className="lesson-actions">
-              <Link className="mimo-button" href="/dashboard">
-                Back to home
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return renderDebug(debugData);
   }
 
   if (dayLocked) {
@@ -135,6 +135,10 @@ export default async function CheckpointPage({ params, searchParams }: Checkpoin
             </span>
             <span>{test.xpReward} XP on pass</span>
           </div>
+
+          {debugMode ? (
+            <pre className="debug-panel">{JSON.stringify(debugData, null, 2)}</pre>
+          ) : null}
 
           {errorParam ? <div className="mimo-alert">{errorParam}</div> : null}
 
