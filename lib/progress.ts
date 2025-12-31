@@ -101,7 +101,7 @@ const getYesterdayString = (today: string) => {
   return toDateStringLocal(date);
 };
 
-const hasUserDay = async (userId: number, dayNumber: number) => {
+export const hasUserDay = async (userId: number, dayNumber: number) => {
   const db = await getDb();
   const result = await db`
     SELECT day
@@ -139,6 +139,16 @@ export const isLessonStepsComplete = async (
 ) => {
   const counts = await getLessonProgressCounts(userId, dayNumber);
   return counts.total > 0 && counts.completed >= counts.total;
+};
+
+export const isLessonReadyForCheckpoint = async (
+  userId: number,
+  dayNumber: number
+) => {
+  if (await hasUserDay(userId, dayNumber)) {
+    return true;
+  }
+  return isLessonStepsComplete(userId, dayNumber);
 };
 
 const recordLessonCompletion = async (
