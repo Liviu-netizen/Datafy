@@ -64,6 +64,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const showParam = typeof params?.show === "string" ? params.show : "";
   const errorParam = typeof params?.error === "string" ? params.error : "";
+  const debugParam = typeof params?.debug === "string" ? params.debug : "";
+  const debugMode = debugParam === "1";
   const showId = Number.isFinite(Number(showParam)) ? Number(showParam) : null;
   const viewParam = typeof params?.view === "string" ? params.view : "";
   const view = viewParam || (showId || errorParam ? "lesson" : "home");
@@ -359,10 +361,25 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const skillChecks = await getSkillChecksForDay(user.id, dashboard.dayNumber);
   const patterns = await getPatternsForDay(user.id, dashboard.dayNumber);
 
+  const debugData = debugMode
+    ? {
+        build: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+        dayNumber: dashboard.dayNumber,
+        lessonCompleted: dashboard.lessonCompleted,
+        canTakeCheckpoint: dashboard.canTakeCheckpoint,
+        checkpointPassed: dashboard.checkpointPassed,
+        skillChecks: skillChecks.length,
+        patterns: patterns.length,
+      }
+    : null;
+
   return (
     <div className="mimo-shell dashboard-shell">
       <div className="dashboard-wrap">
         {errorParam ? <div className="mimo-alert">{errorParam}</div> : null}
+        {debugData ? (
+          <pre className="debug-panel">{JSON.stringify(debugData, null, 2)}</pre>
+        ) : null}
         <header className="dashboard-header">
           <div className="dashboard-title">
             <div>

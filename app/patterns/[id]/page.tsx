@@ -27,13 +27,63 @@ export default async function PatternPage({ params, searchParams }: PatternPageP
     redirect("/login");
   }
 
+  const debugParam = typeof searchParams?.debug === "string" ? searchParams.debug : "";
+  const debugMode = debugParam === "1";
+
   const pattern = await getPatternById(params.id);
   if (!pattern) {
+    if (debugMode) {
+      const debugData = {
+        build: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+        error: "missing_pattern",
+        id: params.id,
+      };
+      return (
+        <div className="mimo-shell dashboard-shell">
+          <div className="dashboard-wrap">
+            <div className="mimo-card">
+              <h1 className="mimo-title">Pattern debug</h1>
+              <pre className="debug-panel">{JSON.stringify(debugData, null, 2)}</pre>
+              <div className="lesson-actions">
+                <Link className="mimo-button" href="/dashboard">
+                  Back to home
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     redirect("/dashboard?error=Pattern%20missing%20for%20today.");
   }
 
   const dashboard = await getDashboardData(user.id);
-  if (pattern.dayNumber > dashboard.dayNumber) {
+  const locked = pattern.dayNumber > dashboard.dayNumber;
+  if (debugMode && locked) {
+    const debugData = {
+      build: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+      id: pattern.id,
+      patternDay: pattern.dayNumber,
+      dashboardDay: dashboard.dayNumber,
+      locked,
+    };
+    return (
+      <div className="mimo-shell dashboard-shell">
+        <div className="dashboard-wrap">
+          <div className="mimo-card">
+            <h1 className="mimo-title">Pattern debug</h1>
+            <pre className="debug-panel">{JSON.stringify(debugData, null, 2)}</pre>
+            <div className="lesson-actions">
+              <Link className="mimo-button" href="/dashboard">
+                Back to home
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (locked) {
     redirect("/dashboard?error=Pattern%20locked%20for%20a%20future%20day.");
   }
 

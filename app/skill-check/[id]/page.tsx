@@ -26,13 +26,63 @@ export default async function SkillCheckPage({ params, searchParams }: SkillChec
     redirect("/login");
   }
 
+  const debugParam = typeof searchParams?.debug === "string" ? searchParams.debug : "";
+  const debugMode = debugParam === "1";
+
   const skillCheck = await getSkillCheckById(params.id);
   if (!skillCheck) {
+    if (debugMode) {
+      const debugData = {
+        build: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+        error: "missing_skill_check",
+        id: params.id,
+      };
+      return (
+        <div className="mimo-shell dashboard-shell">
+          <div className="dashboard-wrap">
+            <div className="mimo-card">
+              <h1 className="mimo-title">Skill check debug</h1>
+              <pre className="debug-panel">{JSON.stringify(debugData, null, 2)}</pre>
+              <div className="lesson-actions">
+                <Link className="mimo-button" href="/dashboard">
+                  Back to home
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     redirect("/dashboard?error=Skill%20check%20missing%20for%20today.");
   }
 
   const dashboard = await getDashboardData(user.id);
-  if (skillCheck.dayNumber > dashboard.dayNumber) {
+  const locked = skillCheck.dayNumber > dashboard.dayNumber;
+  if (debugMode && locked) {
+    const debugData = {
+      build: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+      id: skillCheck.id,
+      checkDay: skillCheck.dayNumber,
+      dashboardDay: dashboard.dayNumber,
+      locked,
+    };
+    return (
+      <div className="mimo-shell dashboard-shell">
+        <div className="dashboard-wrap">
+          <div className="mimo-card">
+            <h1 className="mimo-title">Skill check debug</h1>
+            <pre className="debug-panel">{JSON.stringify(debugData, null, 2)}</pre>
+            <div className="lesson-actions">
+              <Link className="mimo-button" href="/dashboard">
+                Back to home
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (locked) {
     redirect("/dashboard?error=Skill%20check%20locked%20for%20a%20future%20day.");
   }
 

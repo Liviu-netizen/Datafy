@@ -37,21 +37,66 @@ export default async function CheckpointPage({ params, searchParams }: Checkpoin
   }
 
   const day = Number(params.day);
+  const debugParam = typeof searchParams?.debug === "string" ? searchParams.debug : "";
+  const debugMode = debugParam === "1";
   if (!Number.isFinite(day)) {
+    if (debugMode) {
+      return (
+        <div className="mimo-shell dashboard-shell">
+          <div className="dashboard-wrap">
+            <div className="mimo-card">
+              <h1 className="mimo-title">Checkpoint debug</h1>
+              <pre className="debug-panel">{JSON.stringify({ error: "invalid_day" }, null, 2)}</pre>
+            </div>
+          </div>
+        </div>
+      );
+    }
     redirect("/dashboard");
   }
 
   const dashboard = await getDashboardData(user.id);
-  if (day > dashboard.dayNumber) {
+  const dayLocked = day > dashboard.dayNumber;
+
+  const lessonComplete = await isLessonReadyForCheckpoint(user.id, day);
+
+  const test = await getCheckpointTestForDay(day);
+  const missingTest = !test;
+
+  if (debugMode && (dayLocked || !lessonComplete || missingTest)) {
+    const debugData = {
+      build: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+      day,
+      dashboardDay: dashboard.dayNumber,
+      dayLocked,
+      lessonComplete,
+      testFound: Boolean(test),
+    };
+    return (
+      <div className="mimo-shell dashboard-shell">
+        <div className="dashboard-wrap">
+          <div className="mimo-card">
+            <h1 className="mimo-title">Checkpoint debug</h1>
+            <pre className="debug-panel">{JSON.stringify(debugData, null, 2)}</pre>
+            <div className="lesson-actions">
+              <Link className="mimo-button" href="/dashboard">
+                Back to home
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (dayLocked) {
     redirect("/dashboard?error=Checkpoint%20locked%20until%20you%20reach%20this%20day.");
   }
 
-  const lessonComplete = await isLessonReadyForCheckpoint(user.id, day);
   if (!lessonComplete) {
     redirect("/dashboard?view=lesson&error=Finish%20the%20lesson%20first.");
   }
 
-  const test = await getCheckpointTestForDay(day);
   if (!test) {
     redirect("/dashboard?error=Checkpoint%20missing%20for%20this%20day.");
   }
